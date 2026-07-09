@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { TransportMode } from '../common/transport-mode.enum';
 import { GeoPoint } from './geo-point';
 import { haversineDistanceMeters } from './geo-distance';
-import { JourneySegment } from './journey-segment';
+import { JourneySegment, toWaypoint } from './journey-segment';
 import { MobilityProvider } from './mobility-provider';
 
 // ponytail: average walking speed, ~5 km/h — standard pedestrian planning
@@ -28,8 +28,8 @@ export class WalkMobilityProvider implements MobilityProvider {
       {
         mode: TransportMode.Marche,
         durationSeconds,
-        from: { name: '', ...from },
-        to: { name: '', ...to },
+        from: toWaypoint(from, ''),
+        to: toWaypoint(to, ''),
       },
     ]);
   }

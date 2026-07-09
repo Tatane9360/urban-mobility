@@ -4,7 +4,7 @@ import { GbfsService } from '../integration/gbfs.service';
 import { GbfsSnapshot, GbfsStation } from '../integration/gbfs.types';
 import { GeoPoint } from './geo-point';
 import { haversineDistanceMeters } from './geo-distance';
-import { JourneySegment } from './journey-segment';
+import { JourneySegment, toWaypoint } from './journey-segment';
 import { MobilityProvider } from './mobility-provider';
 
 // ponytail: average cycling speed in urban traffic, ~15 km/h — standard
@@ -33,12 +33,31 @@ export class BikeMobilityProvider implements MobilityProvider {
       return Promise.resolve([]);
     }
 
-    const availableStation = this.findNearestStationWithBikes(from, snapshot);
-    if (!availableStation) {
+    // GBFS is dock-based, not free-floating: a Vélo segment needs a real
+    // pickup station (bikes available) AND a real drop-off station (a free
+    // dock), not just the raw search coordinates at either end.
+    const pickupStation = this.findNearestStation(
+      from,
+      snapshot,
+      (status) => status.isRenting && status.bikesAvailable > 0,
+    );
+    if (!pickupStation) {
       return Promise.resolve([]);
     }
 
-    const distanceMeters = haversineDistanceMeters(from, to);
+    const dropoffStation = this.findNearestStation(
+      to,
+      snapshot,
+      (status) => status.docksAvailable > 0,
+    );
+    if (!dropoffStation) {
+      return Promise.resolve([]);
+    }
+
+    const distanceMeters = haversineDistanceMeters(
+      pickupStation,
+      dropoffStation,
+    );
     const durationSeconds = Math.round(
       distanceMeters / BIKE_SPEED_METERS_PER_SECOND,
     );
@@ -47,28 +66,33 @@ export class BikeMobilityProvider implements MobilityProvider {
       {
         mode: TransportMode.Velo,
         durationSeconds,
-        from: { name: availableStation.name, ...from },
-        to: { name: '', ...to },
+        from: toWaypoint(pickupStation, pickupStation.name),
+        to: toWaypoint(dropoffStation, dropoffStation.name),
       },
     ]);
   }
 
-  private findNearestStationWithBikes(
-    from: GeoPoint,
+  private findNearestStation(
+    point: GeoPoint,
     snapshot: GbfsSnapshot,
+    matches: (status: {
+      isRenting: boolean;
+      bikesAvailable: number;
+      docksAvailable: number;
+    }) => boolean,
   ): GbfsStation | null {
-    const stationsWithBikes = snapshot.stations
+    const candidates = snapshot.stations
       .filter((station) => {
         const status = snapshot.statusByStationId.get(station.stationId);
-        return status && status.isRenting && status.bikesAvailable > 0;
+        return status && matches(status);
       })
       .map((station) => ({
         station,
-        distance: haversineDistanceMeters(from, station),
+        distance: haversineDistanceMeters(point, station),
       }))
       .filter(({ distance }) => distance <= NEARBY_STATION_RADIUS_METERS)
       .sort((a, b) => a.distance - b.distance);
 
-    return stationsWithBikes[0]?.station ?? null;
+    return candidates[0]?.station ?? null;
   }
 }

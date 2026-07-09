@@ -3,7 +3,7 @@ import { GbfsSnapshot } from '../integration/gbfs.types';
 import { TransportMode } from '../common/transport-mode.enum';
 import { BikeMobilityProvider } from './bike.mobility-provider';
 
-// Corum, real Vélomagg station coordinates from endpoints.md's fixture area.
+// Corum and Odysseum, real Vélomagg-area coordinates from endpoints.md.
 const corum = { lat: 43.6146, lon: 3.8825 };
 const odysseum = { lat: 43.607, lon: 3.917 };
 
@@ -11,53 +11,129 @@ function mockGbfsService(snapshot: GbfsSnapshot | null): GbfsService {
   return { getSnapshot: () => snapshot } as unknown as GbfsService;
 }
 
-describe('BikeMobilityProvider', () => {
-  it('returns a Vélo segment when a nearby station has bikes available', async () => {
-    const snapshot: GbfsSnapshot = {
-      stations: [
-        { stationId: '001', name: 'Corum', lat: 43.6147, lon: 3.8826 },
-      ],
-      statusByStationId: new Map([
-        [
-          '001',
-          {
-            stationId: '001',
-            bikesAvailable: 3,
-            docksAvailable: 5,
-            isRenting: true,
-          },
-        ],
+function snapshotWithStations(
+  stations: Array<{
+    stationId: string;
+    name: string;
+    lat: number;
+    lon: number;
+    bikesAvailable: number;
+    docksAvailable: number;
+    isRenting: boolean;
+  }>,
+): GbfsSnapshot {
+  return {
+    stations: stations.map((s) => ({
+      stationId: s.stationId,
+      name: s.name,
+      lat: s.lat,
+      lon: s.lon,
+    })),
+    statusByStationId: new Map(
+      stations.map((s) => [
+        s.stationId,
+        {
+          stationId: s.stationId,
+          bikesAvailable: s.bikesAvailable,
+          docksAvailable: s.docksAvailable,
+          isRenting: s.isRenting,
+        },
       ]),
-      fetchedAt: new Date(),
-    };
+    ),
+    fetchedAt: new Date(),
+  };
+}
+
+describe('BikeMobilityProvider', () => {
+  it('returns a Vélo segment between a pickup station (bikes) and a drop-off station (free dock)', async () => {
+    const snapshot = snapshotWithStations([
+      {
+        stationId: '001',
+        name: 'Corum',
+        lat: 43.6147,
+        lon: 3.8826,
+        bikesAvailable: 3,
+        docksAvailable: 5,
+        isRenting: true,
+      },
+      {
+        stationId: '002',
+        name: 'Odysseum',
+        lat: 43.6071,
+        lon: 3.9171,
+        bikesAvailable: 1,
+        docksAvailable: 4,
+        isRenting: true,
+      },
+    ]);
     const provider = new BikeMobilityProvider(mockGbfsService(snapshot));
 
     const segments = await provider.getSegments(corum, odysseum, new Date());
 
     expect(segments).toHaveLength(1);
     expect(segments[0].mode).toBe(TransportMode.Velo);
-    expect(segments[0].from).toEqual({ name: 'Corum', ...corum });
+    expect(segments[0].from).toEqual({
+      name: 'Corum',
+      lat: 43.6147,
+      lon: 3.8826,
+    });
+    expect(segments[0].to).toEqual({
+      name: 'Odysseum',
+      lat: 43.6071,
+      lon: 3.9171,
+    });
     expect(segments[0].durationSeconds).toBeGreaterThan(0);
   });
 
-  it('returns no segment when the nearby station has no bikes available', async () => {
-    const snapshot: GbfsSnapshot = {
-      stations: [
-        { stationId: '001', name: 'Corum', lat: 43.6147, lon: 3.8826 },
-      ],
-      statusByStationId: new Map([
-        [
-          '001',
-          {
-            stationId: '001',
-            bikesAvailable: 0,
-            docksAvailable: 8,
-            isRenting: true,
-          },
-        ],
-      ]),
-      fetchedAt: new Date(),
-    };
+  it('returns no segment when the pickup station has no bikes available', async () => {
+    const snapshot = snapshotWithStations([
+      {
+        stationId: '001',
+        name: 'Corum',
+        lat: 43.6147,
+        lon: 3.8826,
+        bikesAvailable: 0,
+        docksAvailable: 8,
+        isRenting: true,
+      },
+      {
+        stationId: '002',
+        name: 'Odysseum',
+        lat: 43.6071,
+        lon: 3.9171,
+        bikesAvailable: 1,
+        docksAvailable: 4,
+        isRenting: true,
+      },
+    ]);
+    const provider = new BikeMobilityProvider(mockGbfsService(snapshot));
+
+    const segments = await provider.getSegments(corum, odysseum, new Date());
+
+    expect(segments).toEqual([]);
+  });
+
+  it('returns no segment when the drop-off station has no free dock', async () => {
+    const snapshot = snapshotWithStations([
+      {
+        stationId: '001',
+        name: 'Corum',
+        lat: 43.6147,
+        lon: 3.8826,
+        bikesAvailable: 3,
+        docksAvailable: 5,
+        isRenting: true,
+      },
+      {
+        stationId: '002',
+        name: 'Odysseum',
+        lat: 43.6071,
+        lon: 3.9171,
+        bikesAvailable: 1,
+        docksAvailable: 0,
+        isRenting: true,
+      },
+    ]);
     const provider = new BikeMobilityProvider(mockGbfsService(snapshot));
 
     const segments = await provider.getSegments(corum, odysseum, new Date());
@@ -66,23 +142,17 @@ describe('BikeMobilityProvider', () => {
   });
 
   it('returns no segment when no station is near the origin', async () => {
-    const snapshot: GbfsSnapshot = {
-      stations: [
-        { stationId: '999', name: 'Far away', lat: 48.8566, lon: 2.3522 },
-      ],
-      statusByStationId: new Map([
-        [
-          '999',
-          {
-            stationId: '999',
-            bikesAvailable: 5,
-            docksAvailable: 5,
-            isRenting: true,
-          },
-        ],
-      ]),
-      fetchedAt: new Date(),
-    };
+    const snapshot = snapshotWithStations([
+      {
+        stationId: '999',
+        name: 'Far away',
+        lat: 48.8566,
+        lon: 2.3522,
+        bikesAvailable: 5,
+        docksAvailable: 5,
+        isRenting: true,
+      },
+    ]);
     const provider = new BikeMobilityProvider(mockGbfsService(snapshot));
 
     const segments = await provider.getSegments(corum, odysseum, new Date());

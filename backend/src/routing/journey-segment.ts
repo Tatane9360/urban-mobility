@@ -15,3 +15,7 @@ export interface JourneySegment {
   from: JourneyWaypoint;
   to: JourneyWaypoint;
 }
+
+export function toWaypoint(point: GeoPoint, name: string): JourneyWaypoint {
+  return { name, lat: point.lat, lon: point.lon };
+}
