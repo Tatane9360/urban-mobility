@@ -22,7 +22,18 @@ export class ProfileService {
     dto: UpdateProfileDto,
   ): Promise<ProfileResponseDto> {
     const profile = await this.findByUserIdOrThrow(userId);
-    Object.assign(profile, dto);
+    // ponytail: explicit field-by-field assignment, not Object.assign(profile,
+    // dto) — keeps the assignable surface pinned to these 3 fields even if
+    // MobilityProfile later grows a field that happens to share a DTO name.
+    if (dto.preferredModes !== undefined) {
+      profile.preferredModes = dto.preferredModes;
+    }
+    if (dto.favoriteAddresses !== undefined) {
+      profile.favoriteAddresses = dto.favoriteAddresses;
+    }
+    if (dto.pmrAccessibility !== undefined) {
+      profile.pmrAccessibility = dto.pmrAccessibility;
+    }
     const saved = await this.profileRepository.save(profile);
     return ProfileResponseDto.fromEntity(saved);
   }
