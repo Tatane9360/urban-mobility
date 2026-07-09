@@ -1,7 +1,11 @@
-# Markdown (partout) — garde les README
+# Markdown (partout) — garde les README et les docs de référence du projet
 *.md
 !README.md
 !**/README.md
+!CONTEXT.md
+!endpoints.md
+!PRD_UrbanFlow_Mobility.md
+!docs/adr/**/*.md
 
 # compiled output
 dist/
