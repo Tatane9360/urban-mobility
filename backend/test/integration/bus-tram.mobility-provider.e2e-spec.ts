@@ -62,8 +62,8 @@ describe('BusTramMobilityProvider (e2e)', () => {
     expect(segments[0]).toMatchObject({
       mode: TransportMode.Tram,
       durationSeconds: 30 * 60,
-      from: mosson,
-      to: odysseum,
+      from: { name: 'Mosson' },
+      to: { name: 'Odysseum' },
     });
   });
 
@@ -75,6 +75,8 @@ describe('BusTramMobilityProvider (e2e)', () => {
     expect(segments[0]).toMatchObject({
       mode: TransportMode.Tram,
       durationSeconds: 15 * 60,
+      from: { name: 'Mosson' },
+      to: { name: 'Corum' },
     });
   });
 

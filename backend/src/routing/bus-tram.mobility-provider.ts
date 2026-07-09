@@ -15,12 +15,22 @@ interface CandidateRow {
   routeType: number;
   departureTime: string;
   arrivalTime: string;
+  fromStopName: string;
+  fromLon: number;
+  fromLat: number;
+  toStopName: string;
+  toLon: number;
+  toLat: number;
 }
 
 @Injectable()
 export class BusTramMobilityProvider implements MobilityProvider {
   constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
 
+  // ponytail: raw SQL, not the TypeORM query builder — same call made by
+  // gtfs-import.e2e-spec.ts's own spatial query, since QueryBuilder can't
+  // express PostGIS functions (ST_DWithin) cleanly. All caller-supplied
+  // values are passed as positional params, never interpolated into the SQL.
   async getSegments(
     from: GeoPoint,
     to: GeoPoint,
@@ -32,7 +42,13 @@ export class BusTramMobilityProvider implements MobilityProvider {
       `
       SELECT r."routeType" AS "routeType",
              st_from."departureTime" AS "departureTime",
-             st_to."arrivalTime" AS "arrivalTime"
+             st_to."arrivalTime" AS "arrivalTime",
+             stop_from."stopName" AS "fromStopName",
+             ST_X(stop_from.location::geometry) AS "fromLon",
+             ST_Y(stop_from.location::geometry) AS "fromLat",
+             stop_to."stopName" AS "toStopName",
+             ST_X(stop_to.location::geometry) AS "toLon",
+             ST_Y(stop_to.location::geometry) AS "toLat"
       FROM gtfs_stop_time st_from
       JOIN gtfs_stop stop_from ON stop_from.id = st_from."stopDbId"
       JOIN gtfs_stop_time st_to
@@ -70,14 +86,17 @@ export class BusTramMobilityProvider implements MobilityProvider {
       durationSeconds:
         gtfsTimeToSeconds(row.arrivalTime) -
         gtfsTimeToSeconds(row.departureTime),
-      from,
-      to,
+      from: { name: row.fromStopName, lat: row.fromLat, lon: row.fromLon },
+      to: { name: row.toStopName, lat: row.toLat, lon: row.toLon },
     }));
   }
 }
 
-// ponytail: GTFS times are HH:MM:SS, hours can exceed 23 for trips past
-// midnight — a search departing e.g. 08:00 must still match those.
+// ponytail: date.getHours() only ever yields 0-23, so this can't match a
+// stop_time stored past midnight (GTFS's own >24:00:00 convention for
+// overnight trips, e.g. "25:15:00"). Known gap, not handled — TaM's urban
+// bus/tram network has no meaningful overnight service, so the impact is
+// negligible for this MVP; revisit if a night-service GTFS feed is added.
 function toGtfsTimeOfDay(date: Date): string {
   const hours = String(date.getHours()).padStart(2, '0');
   const minutes = String(date.getMinutes()).padStart(2, '0');
