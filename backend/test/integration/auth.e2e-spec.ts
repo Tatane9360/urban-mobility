@@ -73,6 +73,22 @@ describe('Auth (e2e)', () => {
       expect(await profileRepository.count()).toBe(1);
     });
 
+    it('rejects concurrent registrations racing on the same email, leaving no partial rows', async () => {
+      const [first, second] = await Promise.all([
+        request(app.getHttpServer())
+          .post('/auth/register')
+          .send({ email: 'frank@example.com', password: 'correct-horse' }),
+        request(app.getHttpServer())
+          .post('/auth/register')
+          .send({ email: 'frank@example.com', password: 'another-password' }),
+      ]);
+
+      const statuses = [first.status, second.status].sort();
+      expect(statuses).toEqual([201, 409]);
+      expect(await userRepository.count()).toBe(1);
+      expect(await profileRepository.count()).toBe(1);
+    });
+
     it('rejects a missing password and leaves no partial rows', async () => {
       const response = await request(app.getHttpServer())
         .post('/auth/register')
@@ -116,6 +132,29 @@ describe('Auth (e2e)', () => {
         .post('/auth/login')
         .send({ email: 'nobody@example.com', password: 'whatever' });
 
+      expect(response.status).toBe(401);
+    });
+  });
+
+  describe('GET /auth/me', () => {
+    it('returns the current user for a valid bearer token', async () => {
+      const register = await request(app.getHttpServer())
+        .post('/auth/register')
+        .send({ email: 'grace@example.com', password: 'correct-horse' });
+      const { accessToken } = register.body as { accessToken: string };
+
+      const response = await request(app.getHttpServer())
+        .get('/auth/me')
+        .set('Authorization', `Bearer ${accessToken}`);
+
+      expect(response.status).toBe(200);
+      expect((response.body as { email: string }).email).toBe(
+        'grace@example.com',
+      );
+    });
+
+    it('returns 401 without a bearer token', async () => {
+      const response = await request(app.getHttpServer()).get('/auth/me');
       expect(response.status).toBe(401);
     });
   });

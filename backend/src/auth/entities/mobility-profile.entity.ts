@@ -9,10 +9,13 @@ export class MobilityProfile {
   @OneToOne(() => User, (user) => user.mobilityProfile, { onDelete: 'CASCADE' })
   user!: User;
 
-  @Column('simple-array', { default: '' })
+  // ponytail: no DB-level default — TypeORM's simple-array reads an empty
+  // string default back as [''] (one blank element), not []. The empty
+  // array is supplied explicitly at creation time (see AuthService.register).
+  @Column('simple-array')
   preferredModes!: string[];
 
-  @Column('simple-array', { default: '' })
+  @Column('simple-array')
   favoriteAddresses!: string[];
 
   @Column('boolean', { default: false })
