@@ -9,6 +9,7 @@ import { GtfsTrip } from './entities/gtfs-trip.entity';
 import { GtfsStopTime } from './entities/gtfs-stop-time.entity';
 import { GtfsImportService } from './gtfs-import.service';
 import { GbfsService } from './gbfs.service';
+import { GtfsRtService } from './gtfs-rt.service';
 
 @Module({
   imports: [
@@ -22,7 +23,7 @@ import { GbfsService } from './gbfs.service';
       GtfsStopTime,
     ]),
   ],
-  providers: [GtfsImportService, GbfsService],
-  exports: [GtfsImportService, GbfsService],
+  providers: [GtfsImportService, GbfsService, GtfsRtService],
+  exports: [GtfsImportService, GbfsService, GtfsRtService],
 })
 export class IntegrationModule {}
