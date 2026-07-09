@@ -5,7 +5,7 @@ import {
   IsOptional,
   IsString,
 } from 'class-validator';
-import { TransportMode } from '../../auth/transport-mode.enum';
+import { TransportMode } from '../../common/transport-mode.enum';
 
 export class UpdateProfileDto {
   @IsOptional()

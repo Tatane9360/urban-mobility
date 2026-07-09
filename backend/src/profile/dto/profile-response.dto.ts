@@ -1,4 +1,4 @@
-import { TransportMode } from '../../auth/transport-mode.enum';
+import { TransportMode } from '../../common/transport-mode.enum';
 import { MobilityProfile } from '../../auth/entities/mobility-profile.entity';
 
 // ponytail: constructor takes this narrow shape, not MobilityProfile itself,
