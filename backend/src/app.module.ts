@@ -7,6 +7,7 @@ import { IntegrationModule } from './integration/integration.module';
 import { AuthModule } from './auth/auth.module';
 import { ProfileModule } from './profile/profile.module';
 import { RoutingModule } from './routing/routing.module';
+import { JourneysModule } from './journeys/journeys.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { RoutingModule } from './routing/routing.module';
     AuthModule,
     ProfileModule,
     RoutingModule,
+    JourneysModule,
   ],
   controllers: [AppController],
   providers: [AppService],
