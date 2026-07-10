@@ -1,8 +1,14 @@
 import { BadRequestException } from '@nestjs/common';
 import { TransportMode } from '../common/transport-mode.enum';
+import { GeocodingService } from '../integration/geocoding.service';
+import { GtfsRtService } from '../integration/gtfs-rt.service';
 import { GtfsRtSnapshot } from '../integration/gtfs-rt.types';
+import { BikeMobilityProvider } from './bike.mobility-provider';
+import { BusTramMobilityProvider } from './bus-tram.mobility-provider';
+import { PlanJourneyDto } from './dto/plan-journey.dto';
 import { JourneyPlannerService } from './journey-planner.service';
 import { JourneySegment } from './journey-segment';
+import { WalkMobilityProvider } from './walk.mobility-provider';
 
 const origin = { lat: 43.6146, lon: 3.8825 }; // Corum
 const destination = { lat: 43.607, lon: 3.917 }; // Odysseum
@@ -16,15 +22,17 @@ function busTramSegment(): JourneySegment {
   };
 }
 
-function mockGeocoding(results: Array<{ lat: number; lon: number }>) {
-  return { geocode: jest.fn().mockResolvedValue(results) };
+function mockGeocoding(results: Array<{ lat: number; lon: number }>): GeocodingService {
+  return {
+    geocode: jest.fn().mockResolvedValue(results),
+  } as unknown as GeocodingService;
 }
 
-function mockGtfsRt(snapshot: GtfsRtSnapshot | null) {
-  return { getSnapshot: () => snapshot };
+function mockGtfsRt(snapshot: GtfsRtSnapshot | null): GtfsRtService {
+  return { getSnapshot: () => snapshot } as unknown as GtfsRtService;
 }
 
-function mockWalkProvider() {
+function mockWalkProvider(): WalkMobilityProvider {
   return {
     getSegments: jest.fn((from, to) =>
       Promise.resolve([
@@ -36,26 +44,40 @@ function mockWalkProvider() {
         },
       ]),
     ),
-  };
+  } as unknown as WalkMobilityProvider;
+}
+
+interface JourneyPointInput {
+  coordinates?: { lat: number; lon: number };
+  address?: string;
+}
+
+function planDto(
+  origin: JourneyPointInput,
+  destination: JourneyPointInput,
+): PlanJourneyDto {
+  return { origin, destination } as unknown as PlanJourneyDto;
 }
 
 describe('JourneyPlannerService', () => {
   it('returns a Journey chaining Marche + Tram + Marche when a Bus/Tram segment is found', async () => {
     const busTramProvider = {
       getSegments: jest.fn().mockResolvedValue([busTramSegment()]),
-    };
-    const bikeProvider = { getSegments: jest.fn().mockResolvedValue([]) };
+    } as unknown as BusTramMobilityProvider;
+    const bikeProvider = {
+      getSegments: jest.fn().mockResolvedValue([]),
+    } as unknown as BikeMobilityProvider;
     const walkProvider = mockWalkProvider();
     const service = new JourneyPlannerService(
-      mockGeocoding([]) as never,
-      mockGtfsRt({ vehicles: [], fetchedAt: new Date() }) as never,
-      busTramProvider as never,
-      bikeProvider as never,
-      walkProvider as never,
+      mockGeocoding([]),
+      mockGtfsRt({ vehicles: [], fetchedAt: new Date() }),
+      busTramProvider,
+      bikeProvider,
+      walkProvider,
     );
 
     const journeys = await service.plan(
-      { origin: { coordinates: origin }, destination: { coordinates: destination } } as never,
+      planDto({ coordinates: origin }, { coordinates: destination }),
       new Date(),
     );
 
@@ -73,18 +95,20 @@ describe('JourneyPlannerService', () => {
   it('marks the Journey as degraded when GTFS-RT has no snapshot', async () => {
     const busTramProvider = {
       getSegments: jest.fn().mockResolvedValue([busTramSegment()]),
-    };
-    const bikeProvider = { getSegments: jest.fn().mockResolvedValue([]) };
+    } as unknown as BusTramMobilityProvider;
+    const bikeProvider = {
+      getSegments: jest.fn().mockResolvedValue([]),
+    } as unknown as BikeMobilityProvider;
     const service = new JourneyPlannerService(
-      mockGeocoding([]) as never,
-      mockGtfsRt(null) as never,
-      busTramProvider as never,
-      bikeProvider as never,
-      mockWalkProvider() as never,
+      mockGeocoding([]),
+      mockGtfsRt(null),
+      busTramProvider,
+      bikeProvider,
+      mockWalkProvider(),
     );
 
     const journeys = await service.plan(
-      { origin: { coordinates: origin }, destination: { coordinates: destination } } as never,
+      planDto({ coordinates: origin }, { coordinates: destination }),
       new Date(),
     );
 
@@ -92,19 +116,23 @@ describe('JourneyPlannerService', () => {
   });
 
   it('falls back to a direct Marche journey when no provider finds a segment', async () => {
-    const busTramProvider = { getSegments: jest.fn().mockResolvedValue([]) };
-    const bikeProvider = { getSegments: jest.fn().mockResolvedValue([]) };
+    const busTramProvider = {
+      getSegments: jest.fn().mockResolvedValue([]),
+    } as unknown as BusTramMobilityProvider;
+    const bikeProvider = {
+      getSegments: jest.fn().mockResolvedValue([]),
+    } as unknown as BikeMobilityProvider;
     const walkProvider = mockWalkProvider();
     const service = new JourneyPlannerService(
-      mockGeocoding([]) as never,
-      mockGtfsRt({ vehicles: [], fetchedAt: new Date() }) as never,
-      busTramProvider as never,
-      bikeProvider as never,
-      walkProvider as never,
+      mockGeocoding([]),
+      mockGtfsRt({ vehicles: [], fetchedAt: new Date() }),
+      busTramProvider,
+      bikeProvider,
+      walkProvider,
     );
 
     const journeys = await service.plan(
-      { origin: { coordinates: origin }, destination: { coordinates: destination } } as never,
+      planDto({ coordinates: origin }, { coordinates: destination }),
       new Date(),
     );
 
@@ -117,22 +145,21 @@ describe('JourneyPlannerService', () => {
   it('geocodes an address-only origin/destination before planning', async () => {
     const busTramProvider = {
       getSegments: jest.fn().mockResolvedValue([busTramSegment()]),
-    };
-    const bikeProvider = { getSegments: jest.fn().mockResolvedValue([]) };
+    } as unknown as BusTramMobilityProvider;
+    const bikeProvider = {
+      getSegments: jest.fn().mockResolvedValue([]),
+    } as unknown as BikeMobilityProvider;
     const geocoding = mockGeocoding([{ lat: 43.6146, lon: 3.8825 }]);
     const service = new JourneyPlannerService(
-      geocoding as never,
-      mockGtfsRt({ vehicles: [], fetchedAt: new Date() }) as never,
-      busTramProvider as never,
-      bikeProvider as never,
-      mockWalkProvider() as never,
+      geocoding,
+      mockGtfsRt({ vehicles: [], fetchedAt: new Date() }),
+      busTramProvider,
+      bikeProvider,
+      mockWalkProvider(),
     );
 
     await service.plan(
-      {
-        origin: { address: 'Corum, Montpellier' },
-        destination: { coordinates: destination },
-      } as never,
+      planDto({ address: 'Corum, Montpellier' }, { coordinates: destination }),
       new Date(),
     );
 
@@ -147,19 +174,16 @@ describe('JourneyPlannerService', () => {
   it('throws BadRequestException when an address cannot be geocoded', async () => {
     const geocoding = mockGeocoding([]);
     const service = new JourneyPlannerService(
-      geocoding as never,
-      mockGtfsRt(null) as never,
-      { getSegments: jest.fn() } as never,
-      { getSegments: jest.fn() } as never,
-      mockWalkProvider() as never,
+      geocoding,
+      mockGtfsRt(null),
+      { getSegments: jest.fn() } as unknown as BusTramMobilityProvider,
+      { getSegments: jest.fn() } as unknown as BikeMobilityProvider,
+      mockWalkProvider(),
     );
 
     await expect(
       service.plan(
-        {
-          origin: { address: 'adresse inexistante' },
-          destination: { coordinates: destination },
-        } as never,
+        planDto({ address: 'adresse inexistante' }, { coordinates: destination }),
         new Date(),
       ),
     ).rejects.toThrow(BadRequestException);
@@ -167,18 +191,15 @@ describe('JourneyPlannerService', () => {
 
   it('throws BadRequestException when a point has neither coordinates nor address', async () => {
     const service = new JourneyPlannerService(
-      mockGeocoding([]) as never,
-      mockGtfsRt(null) as never,
-      { getSegments: jest.fn() } as never,
-      { getSegments: jest.fn() } as never,
-      mockWalkProvider() as never,
+      mockGeocoding([]),
+      mockGtfsRt(null),
+      { getSegments: jest.fn() } as unknown as BusTramMobilityProvider,
+      { getSegments: jest.fn() } as unknown as BikeMobilityProvider,
+      mockWalkProvider(),
     );
 
     await expect(
-      service.plan(
-        { origin: {}, destination: { coordinates: destination } } as never,
-        new Date(),
-      ),
+      service.plan(planDto({}, { coordinates: destination }), new Date()),
     ).rejects.toThrow(BadRequestException);
   });
 });
