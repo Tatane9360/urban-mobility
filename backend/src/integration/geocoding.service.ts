@@ -1,4 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { GeocodeResult } from './geocoding.types';
 
 // ponytail: Montpellier Méditerranée Métropole bounding box (viewbox), hand-picked
@@ -34,7 +38,8 @@ export class GeocodingService {
       headers: { 'User-Agent': USER_AGENT },
     });
     if (!response.ok) {
-      throw new Error(`Nominatim HTTP ${response.status}`);
+      this.logger.error(`Nominatim HTTP ${response.status}`);
+      throw new ServiceUnavailableException('Geocoding service unavailable');
     }
 
     const body = (await response.json()) as NominatimEntry[];

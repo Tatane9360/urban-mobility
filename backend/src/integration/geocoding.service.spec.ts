@@ -1,3 +1,4 @@
+import { ServiceUnavailableException } from '@nestjs/common';
 import { GeocodingService } from './geocoding.service';
 
 function jsonResponse(body: unknown): Response {
@@ -66,13 +67,15 @@ describe('GeocodingService', () => {
     );
   });
 
-  it('throws when Nominatim responds with a non-ok status', async () => {
+  it('throws a ServiceUnavailableException when Nominatim responds with a non-ok status', async () => {
     global.fetch = jest.fn(() =>
       Promise.resolve({ ok: false, status: 503 } as unknown as Response),
     ) as unknown as typeof fetch;
 
     const service = new GeocodingService();
 
-    await expect(service.geocode('Comédie')).rejects.toThrow('503');
+    await expect(service.geocode('Comédie')).rejects.toThrow(
+      ServiceUnavailableException,
+    );
   });
 });

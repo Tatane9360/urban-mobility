@@ -78,4 +78,16 @@ describe('Geocode (e2e)', () => {
 
     expect(response.status).toBe(400);
   });
+
+  it('GET /geocode?q=... returns 503 when Nominatim is unavailable', async () => {
+    global.fetch = jest.fn(() =>
+      Promise.resolve({ ok: false, status: 503 } as unknown as Response),
+    ) as unknown as typeof fetch;
+
+    const response = await request(app.getHttpServer()).get(
+      '/geocode?q=Comédie',
+    );
+
+    expect(response.status).toBe(503);
+  });
 });
