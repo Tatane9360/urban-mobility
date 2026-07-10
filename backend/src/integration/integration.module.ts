@@ -10,6 +10,8 @@ import { GtfsStopTime } from './entities/gtfs-stop-time.entity';
 import { GtfsImportService } from './gtfs-import.service';
 import { GbfsService } from './gbfs.service';
 import { GtfsRtService } from './gtfs-rt.service';
+import { GeocodingService } from './geocoding.service';
+import { GeocodingController } from './geocoding.controller';
 
 @Module({
   imports: [
@@ -23,7 +25,8 @@ import { GtfsRtService } from './gtfs-rt.service';
       GtfsStopTime,
     ]),
   ],
-  providers: [GtfsImportService, GbfsService, GtfsRtService],
-  exports: [GtfsImportService, GbfsService, GtfsRtService],
+  controllers: [GeocodingController],
+  providers: [GtfsImportService, GbfsService, GtfsRtService, GeocodingService],
+  exports: [GtfsImportService, GbfsService, GtfsRtService, GeocodingService],
 })
 export class IntegrationModule {}
