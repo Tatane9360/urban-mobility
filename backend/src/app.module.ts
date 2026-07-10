@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
@@ -16,11 +16,21 @@ import { JourneysModule } from './journeys/journeys.module';
     ConfigModule.forRoot({
       isGlobal: true,
     }),
-    // ponytail: generous global limit (100 req/min/IP) — high enough to never
-    // interfere with real usage or the existing e2e suite's rapid-fire
-    // requests; the rate-limiting behavior itself is proven by a dedicated
-    // e2e spec with its own much stricter local ThrottlerModule.
-    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
+    // ponytail: limit/ttl are read from env vars (default: generous 100
+    // req/min/IP, high enough to never interfere with real usage or the
+    // existing e2e suite's rapid-fire requests) so a dedicated e2e spec can
+    // override them to a strict value and prove this exact global guard
+    // configuration — not just that @nestjs/throttler works in isolation.
+    ThrottlerModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => [
+        {
+          ttl: config.get<number>('THROTTLE_TTL_MS', 60_000),
+          limit: config.get<number>('THROTTLE_LIMIT', 100),
+        },
+      ],
+    }),
     DatabaseModule,
     IntegrationModule,
     AuthModule,

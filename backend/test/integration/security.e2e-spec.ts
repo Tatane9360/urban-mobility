@@ -1,29 +1,9 @@
-import { Controller, Get, INestApplication, Module } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import helmet from 'helmet';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../../src/app.module';
-
-@Controller('ping')
-class PingController {
-  @Get()
-  ping() {
-    return { ok: true };
-  }
-}
-
-// Isolated module with its own strict, low rate limit — proves the
-// ThrottlerGuard mechanism works without depending on (or slowing down tests
-// with) the real app's generous 100 req/min global limit.
-@Module({
-  imports: [ThrottlerModule.forRoot([{ ttl: 10_000, limit: 3 }])],
-  controllers: [PingController],
-  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
-})
-class ThrottledTestModule {}
 
 describe('Security hardening (e2e)', () => {
   describe('Helmet + CORS (via the real main.ts bootstrap)', () => {
@@ -79,13 +59,23 @@ describe('Security hardening (e2e)', () => {
     });
   });
 
-  describe('Rate limiting', () => {
+  describe('Rate limiting (the real AppModule, with its ThrottlerModule limit overridden low)', () => {
     let app: INestApplication<App>;
     let moduleFixture: TestingModule;
+    const originalTtl = process.env.THROTTLE_TTL_MS;
+    const originalLimit = process.env.THROTTLE_LIMIT;
 
     beforeAll(async () => {
+      // Overrides the same env vars AppModule's ThrottlerModule.forRootAsync
+      // reads in production — this exercises the actual global APP_GUARD
+      // wiring end-to-end, not a parallel hand-rolled module, so a typo'd
+      // real config (e.g. a wrong provider order or storage misconfiguration)
+      // would fail this test.
+      process.env.THROTTLE_TTL_MS = '10000';
+      process.env.THROTTLE_LIMIT = '3';
+
       moduleFixture = await Test.createTestingModule({
-        imports: [ThrottledTestModule],
+        imports: [AppModule],
       }).compile();
 
       app = moduleFixture.createNestApplication();
@@ -94,16 +84,18 @@ describe('Security hardening (e2e)', () => {
 
     afterAll(async () => {
       await app.close();
+      process.env.THROTTLE_TTL_MS = originalTtl;
+      process.env.THROTTLE_LIMIT = originalLimit;
     });
 
-    it('returns 429 after exceeding the configured limit', async () => {
+    it('returns 429 after exceeding the configured limit on a real route', async () => {
       const server = app.getHttpServer();
       for (let i = 0; i < 3; i++) {
-        const ok = await request(server).get('/ping');
+        const ok = await request(server).get('/');
         expect(ok.status).toBe(200);
       }
 
-      const limited = await request(server).get('/ping');
+      const limited = await request(server).get('/');
       expect(limited.status).toBe(429);
     });
   });
