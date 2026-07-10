@@ -6,6 +6,7 @@ import { RawJourneySegment } from '../routing/journey-segment';
 const tramSegment: RawJourneySegment = {
   mode: TransportMode.Tram,
   durationSeconds: 600,
+  distanceMeters: 3400,
   from: { name: 'Corum', lat: 43.6146, lon: 3.8825 },
   to: { name: 'Odysseum', lat: 43.607, lon: 3.917 },
 };
@@ -13,6 +14,7 @@ const tramSegment: RawJourneySegment = {
 const walkSegment: RawJourneySegment = {
   mode: TransportMode.Marche,
   durationSeconds: 120,
+  distanceMeters: 150,
   from: { name: '', lat: 43.6146, lon: 3.8825 },
   to: { name: '', lat: 43.615, lon: 3.883 },
 };

@@ -19,6 +19,7 @@ function busTramSegment(): RawJourneySegment {
   return {
     mode: TransportMode.Tram,
     durationSeconds: 600,
+    distanceMeters: 3400,
     from: { name: 'Corum', lat: 43.615, lon: 3.883 },
     to: { name: 'Odysseum', lat: 43.6065, lon: 3.9165 },
   };
@@ -41,6 +42,7 @@ function mockWalkProvider(): WalkMobilityProvider {
         {
           mode: TransportMode.Marche,
           durationSeconds: 120,
+          distanceMeters: 150,
           from: { name: '', ...from },
           to: { name: '', ...to },
         },
@@ -225,6 +227,7 @@ describe('JourneyPlannerService', () => {
         {
           mode: TransportMode.Tram,
           durationSeconds: 300,
+          distanceMeters: 3400,
           from: { name: 'Corum', lat: 43.615, lon: 3.883 },
           to: { name: 'Odysseum', lat: 43.6065, lon: 3.9165 },
         },
@@ -235,6 +238,7 @@ describe('JourneyPlannerService', () => {
         {
           mode: TransportMode.Velo,
           durationSeconds: 900,
+          distanceMeters: 3400,
           from: { name: 'Station A', lat: 43.615, lon: 3.883 },
           to: { name: 'Station B', lat: 43.6065, lon: 3.9165 },
         },

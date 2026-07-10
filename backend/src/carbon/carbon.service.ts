@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { haversineDistanceMeters } from '../routing/geo-distance';
 import { JourneySegment, RawJourneySegment } from '../routing/journey-segment';
 import {
   CAR_EMISSION_FACTOR_G_PER_KM,
@@ -9,11 +8,13 @@ import {
 
 @Injectable()
 export class CarbonService {
-  // ponytail: segment distance is derived from its own from/to waypoints via
-  // Haversine, same straight-line approximation already used throughout
-  // routing (see #11) — no OpenRouteService integration in this MVP.
+  // ponytail: uses the segment's own distanceMeters (its provider's real
+  // distance — an OpenRouteService route length for Walk/Bike, Haversine
+  // between matched stops for Bus/Tram, see #16) instead of re-deriving a
+  // straight-line distance from from/to, so carbon stays consistent with
+  // whatever distance actually produced the segment's duration.
   withCarbon(segment: RawJourneySegment): JourneySegment {
-    const distanceKm = haversineDistanceMeters(segment.from, segment.to) / 1000;
+    const distanceKm = segment.distanceMeters / 1000;
     return {
       ...segment,
       carbonGrams: distanceKm * EMISSION_FACTORS_G_PER_KM[segment.mode],
@@ -29,11 +30,8 @@ export class CarbonService {
     journeyCarbonGrams: number,
   ): CarComparison {
     const totalDistanceKm =
-      segments.reduce(
-        (sum, segment) =>
-          sum + haversineDistanceMeters(segment.from, segment.to),
-        0,
-      ) / 1000;
+      segments.reduce((sum, segment) => sum + segment.distanceMeters, 0) /
+      1000;
     const carCarbonGrams = totalDistanceKm * CAR_EMISSION_FACTOR_G_PER_KM;
     const savedCarbonGrams = carCarbonGrams - journeyCarbonGrams;
     const savedPercent =

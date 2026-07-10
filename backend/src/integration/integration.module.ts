@@ -12,6 +12,7 @@ import { GbfsService } from './gbfs.service';
 import { GtfsRtService } from './gtfs-rt.service';
 import { GeocodingService } from './geocoding.service';
 import { GeocodingController } from './geocoding.controller';
+import { OpenRouteService } from './openrouteservice.service';
 
 @Module({
   imports: [
@@ -26,7 +27,19 @@ import { GeocodingController } from './geocoding.controller';
     ]),
   ],
   controllers: [GeocodingController],
-  providers: [GtfsImportService, GbfsService, GtfsRtService, GeocodingService],
-  exports: [GtfsImportService, GbfsService, GtfsRtService, GeocodingService],
+  providers: [
+    GtfsImportService,
+    GbfsService,
+    GtfsRtService,
+    GeocodingService,
+    OpenRouteService,
+  ],
+  exports: [
+    GtfsImportService,
+    GbfsService,
+    GtfsRtService,
+    GeocodingService,
+    OpenRouteService,
+  ],
 })
 export class IntegrationModule {}

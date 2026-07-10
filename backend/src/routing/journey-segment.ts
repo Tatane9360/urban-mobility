@@ -12,9 +12,14 @@ export interface JourneyWaypoint extends GeoPoint {
 // A MobilityProvider only knows mode/duration/tracé — carbon is attached
 // afterwards by the planner (CarbonService), one calculation point instead of
 // duplicating emission-factor lookups in every provider (see #13).
+// distanceMeters is the provider's own real distance (OpenRouteService route
+// length for Walk/Bike, Haversine between matched stops for Bus/Tram) — not
+// re-derived from from/to via Haversine downstream, so carbon stays
+// consistent with whatever distance actually produced the duration (see #16).
 export interface RawJourneySegment {
   mode: TransportMode;
   durationSeconds: number;
+  distanceMeters: number;
   from: JourneyWaypoint;
   to: JourneyWaypoint;
 }

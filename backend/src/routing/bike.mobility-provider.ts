@@ -2,13 +2,15 @@ import { Injectable } from '@nestjs/common';
 import { TransportMode } from '../common/transport-mode.enum';
 import { GbfsService } from '../integration/gbfs.service';
 import { GbfsSnapshot, GbfsStation } from '../integration/gbfs.types';
+import { OpenRouteService } from '../integration/openrouteservice.service';
 import { GeoPoint } from './geo-point';
 import { haversineDistanceMeters } from './geo-distance';
 import { RawJourneySegment, toWaypoint } from './journey-segment';
 import { MobilityProvider } from './mobility-provider';
 
 // ponytail: average cycling speed in urban traffic, ~15 km/h — standard
-// bike planning constant, not sourced from a live routing API (see #11).
+// bike planning constant, used only when OpenRouteService is unavailable
+// (see #11 for the original Haversine-only fallback).
 const BIKE_SPEED_METERS_PER_SECOND = 15000 / 3600;
 
 // ponytail: same "nearby stop" radius used for Bus/Tram stops — GBFS
@@ -17,12 +19,15 @@ const NEARBY_STATION_RADIUS_METERS = 500;
 
 @Injectable()
 export class BikeMobilityProvider implements MobilityProvider {
-  constructor(private readonly gbfsService: GbfsService) {}
+  constructor(
+    private readonly gbfsService: GbfsService,
+    private readonly openRouteService: OpenRouteService,
+  ) {}
 
   // ponytail: departureTime is part of the shared MobilityProvider contract
   // (Bus/Tram needs it) but bike availability is read from the live GBFS
   // snapshot, not a schedule.
-  getSegments(
+  async getSegments(
     from: GeoPoint,
     to: GeoPoint,
     departureTime: Date,
@@ -30,7 +35,7 @@ export class BikeMobilityProvider implements MobilityProvider {
     void departureTime;
     const snapshot = this.gbfsService.getSnapshot();
     if (!snapshot) {
-      return Promise.resolve([]);
+      return [];
     }
 
     // GBFS is dock-based, not free-floating: a Vélo segment needs a real
@@ -42,7 +47,7 @@ export class BikeMobilityProvider implements MobilityProvider {
       (status) => status.isRenting && status.bikesAvailable > 0,
     );
     if (!pickupStation) {
-      return Promise.resolve([]);
+      return [];
     }
 
     const dropoffStation = this.findNearestStation(
@@ -51,25 +56,30 @@ export class BikeMobilityProvider implements MobilityProvider {
       (status) => status.docksAvailable > 0,
     );
     if (!dropoffStation) {
-      return Promise.resolve([]);
+      return [];
     }
 
-    const distanceMeters = haversineDistanceMeters(
+    const route = await this.openRouteService.getRoute(
       pickupStation,
       dropoffStation,
+      'cycling-regular',
     );
-    const durationSeconds = Math.round(
-      distanceMeters / BIKE_SPEED_METERS_PER_SECOND,
-    );
+    const distanceMeters = route
+      ? route.distanceMeters
+      : haversineDistanceMeters(pickupStation, dropoffStation);
+    const durationSeconds = route
+      ? Math.round(route.durationSeconds)
+      : Math.round(distanceMeters / BIKE_SPEED_METERS_PER_SECOND);
 
-    return Promise.resolve([
+    return [
       {
         mode: TransportMode.Velo,
         durationSeconds,
+        distanceMeters,
         from: toWaypoint(pickupStation, pickupStation.name),
         to: toWaypoint(dropoffStation, dropoffStation.name),
       },
-    ]);
+    ];
   }
 
   private findNearestStation(

@@ -3,6 +3,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { TransportMode } from '../common/transport-mode.enum';
 import { GeoPoint } from './geo-point';
+import { haversineDistanceMeters } from './geo-distance';
 import { RawJourneySegment } from './journey-segment';
 import { MobilityProvider } from './mobility-provider';
 
@@ -81,14 +82,24 @@ export class BusTramMobilityProvider implements MobilityProvider {
       ],
     );
 
-    return rows.map((row) => ({
-      mode: routeTypeToMode(row.routeType),
-      durationSeconds:
-        gtfsTimeToSeconds(row.arrivalTime) -
-        gtfsTimeToSeconds(row.departureTime),
-      from: { name: row.fromStopName, lat: row.fromLat, lon: row.fromLon },
-      to: { name: row.toStopName, lat: row.toLat, lon: row.toLon },
-    }));
+    return rows.map((row) => {
+      const from = { name: row.fromStopName, lat: row.fromLat, lon: row.fromLon };
+      const to = { name: row.toStopName, lat: row.toLat, lon: row.toLon };
+      return {
+        mode: routeTypeToMode(row.routeType),
+        durationSeconds:
+          gtfsTimeToSeconds(row.arrivalTime) -
+          gtfsTimeToSeconds(row.departureTime),
+        // ponytail: Haversine between the matched stops, not the actual rail/
+        // road alignment of the line — GTFS doesn't carry a per-segment
+        // distance and OpenRouteService has no "follow this transit line"
+        // profile, so straight-line is the honest available approximation
+        // here (see #16).
+        distanceMeters: haversineDistanceMeters(from, to),
+        from,
+        to,
+      };
+    });
   }
 }
 
