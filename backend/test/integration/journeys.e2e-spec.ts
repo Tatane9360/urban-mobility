@@ -68,8 +68,10 @@ describe('Journeys (e2e)', () => {
 
     expect(response.status).toBe(201);
     const journeys = response.body as Array<{
-      segments: Array<{ mode: string }>;
+      segments: Array<{ mode: string; carbonGrams: number }>;
       durationSeconds: number;
+      carbonGrams: number;
+      carComparison: { carCarbonGrams: number; savedCarbonGrams: number };
       degraded: boolean;
     }>;
     expect(journeys.length).toBeGreaterThanOrEqual(1);
@@ -81,6 +83,42 @@ describe('Journeys (e2e)', () => {
     ]);
     expect(journey.durationSeconds).toBeGreaterThan(0);
     expect(typeof journey.degraded).toBe('boolean');
+    expect(journey.carbonGrams).toBeGreaterThan(0);
+    expect(journey.segments.every((s) => typeof s.carbonGrams === 'number')).toBe(
+      true,
+    );
+    expect(journey.carComparison.carCarbonGrams).toBeGreaterThan(
+      journey.carbonGrams,
+    );
+    expect(journey.carComparison.savedCarbonGrams).toBeGreaterThan(0);
+  });
+
+  it('sorts candidate Journeys by carbon when sort=carbon is requested', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/journeys')
+      .send({
+        origin: { coordinates: nearMosson },
+        destination: { coordinates: nearOdysseum },
+        departureTime: '2026-07-10T07:00:00',
+        sort: 'carbon',
+      });
+
+    expect(response.status).toBe(201);
+    const journeys = response.body as Array<{ carbonGrams: number }>;
+    const carbonValues = journeys.map((j) => j.carbonGrams);
+    expect(carbonValues).toEqual([...carbonValues].sort((a, b) => a - b));
+  });
+
+  it('rejects an invalid sort value', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/journeys')
+      .send({
+        origin: { coordinates: nearMosson },
+        destination: { coordinates: nearOdysseum },
+        sort: 'fastest',
+      });
+
+    expect(response.status).toBe(400);
   });
 
   it('falls back to a direct Marche Journey when the search is outside the TaM perimeter', async () => {

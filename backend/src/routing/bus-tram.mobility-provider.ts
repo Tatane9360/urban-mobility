@@ -3,7 +3,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { TransportMode } from '../common/transport-mode.enum';
 import { GeoPoint } from './geo-point';
-import { JourneySegment } from './journey-segment';
+import { RawJourneySegment } from './journey-segment';
 import { MobilityProvider } from './mobility-provider';
 
 // ponytail: search radius for "stop near a point" — GTFS stop spacing in
@@ -35,7 +35,7 @@ export class BusTramMobilityProvider implements MobilityProvider {
     from: GeoPoint,
     to: GeoPoint,
     departureTime: Date,
-  ): Promise<JourneySegment[]> {
+  ): Promise<RawJourneySegment[]> {
     const departureTimeOfDay = toGtfsTimeOfDay(departureTime);
 
     const rows: CandidateRow[] = await this.dataSource.query(

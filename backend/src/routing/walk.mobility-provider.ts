@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { TransportMode } from '../common/transport-mode.enum';
 import { GeoPoint } from './geo-point';
 import { haversineDistanceMeters } from './geo-distance';
-import { JourneySegment, toWaypoint } from './journey-segment';
+import { RawJourneySegment, toWaypoint } from './journey-segment';
 import { MobilityProvider } from './mobility-provider';
 
 // ponytail: average walking speed, ~5 km/h — standard pedestrian planning
@@ -17,7 +17,7 @@ export class WalkMobilityProvider implements MobilityProvider {
     from: GeoPoint,
     to: GeoPoint,
     departureTime: Date,
-  ): Promise<JourneySegment[]> {
+  ): Promise<RawJourneySegment[]> {
     void departureTime;
     const distanceMeters = haversineDistanceMeters(from, to);
     const durationSeconds = Math.round(

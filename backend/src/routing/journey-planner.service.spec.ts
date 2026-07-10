@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import { CarbonService } from '../carbon/carbon.service';
 import { TransportMode } from '../common/transport-mode.enum';
 import { GeocodingService } from '../integration/geocoding.service';
 import { GtfsRtService } from '../integration/gtfs-rt.service';
@@ -7,13 +8,14 @@ import { BikeMobilityProvider } from './bike.mobility-provider';
 import { BusTramMobilityProvider } from './bus-tram.mobility-provider';
 import { PlanJourneyDto } from './dto/plan-journey.dto';
 import { JourneyPlannerService } from './journey-planner.service';
-import { JourneySegment } from './journey-segment';
+import { RawJourneySegment } from './journey-segment';
 import { WalkMobilityProvider } from './walk.mobility-provider';
 
 const origin = { lat: 43.6146, lon: 3.8825 }; // Corum
 const destination = { lat: 43.607, lon: 3.917 }; // Odysseum
+const carbonService = new CarbonService();
 
-function busTramSegment(): JourneySegment {
+function busTramSegment(): RawJourneySegment {
   return {
     mode: TransportMode.Tram,
     durationSeconds: 600,
@@ -55,8 +57,9 @@ interface JourneyPointInput {
 function planDto(
   origin: JourneyPointInput,
   destination: JourneyPointInput,
+  sort?: 'duration' | 'carbon',
 ): PlanJourneyDto {
-  return { origin, destination } as unknown as PlanJourneyDto;
+  return { origin, destination, sort } as unknown as PlanJourneyDto;
 }
 
 describe('JourneyPlannerService', () => {
@@ -71,6 +74,7 @@ describe('JourneyPlannerService', () => {
     const service = new JourneyPlannerService(
       mockGeocoding([]),
       mockGtfsRt({ vehicles: [], fetchedAt: new Date() }),
+      carbonService,
       busTramProvider,
       bikeProvider,
       walkProvider,
@@ -90,6 +94,10 @@ describe('JourneyPlannerService', () => {
     ]);
     expect(journey.degraded).toBe(false);
     expect(journey.durationSeconds).toBe(120 + 600 + 120);
+    expect(journey.carbonGrams).toBeGreaterThan(0);
+    expect(journey.carComparison.carCarbonGrams).toBeGreaterThan(
+      journey.carbonGrams,
+    );
   });
 
   it('marks the Journey as degraded when GTFS-RT has no snapshot', async () => {
@@ -102,6 +110,7 @@ describe('JourneyPlannerService', () => {
     const service = new JourneyPlannerService(
       mockGeocoding([]),
       mockGtfsRt(null),
+      carbonService,
       busTramProvider,
       bikeProvider,
       mockWalkProvider(),
@@ -126,6 +135,7 @@ describe('JourneyPlannerService', () => {
     const service = new JourneyPlannerService(
       mockGeocoding([]),
       mockGtfsRt({ vehicles: [], fetchedAt: new Date() }),
+      carbonService,
       busTramProvider,
       bikeProvider,
       walkProvider,
@@ -153,6 +163,7 @@ describe('JourneyPlannerService', () => {
     const service = new JourneyPlannerService(
       geocoding,
       mockGtfsRt({ vehicles: [], fetchedAt: new Date() }),
+      carbonService,
       busTramProvider,
       bikeProvider,
       mockWalkProvider(),
@@ -176,6 +187,7 @@ describe('JourneyPlannerService', () => {
     const service = new JourneyPlannerService(
       geocoding,
       mockGtfsRt(null),
+      carbonService,
       { getSegments: jest.fn() } as unknown as BusTramMobilityProvider,
       { getSegments: jest.fn() } as unknown as BikeMobilityProvider,
       mockWalkProvider(),
@@ -193,6 +205,7 @@ describe('JourneyPlannerService', () => {
     const service = new JourneyPlannerService(
       mockGeocoding([]),
       mockGtfsRt(null),
+      carbonService,
       { getSegments: jest.fn() } as unknown as BusTramMobilityProvider,
       { getSegments: jest.fn() } as unknown as BikeMobilityProvider,
       mockWalkProvider(),
@@ -201,5 +214,58 @@ describe('JourneyPlannerService', () => {
     await expect(
       service.plan(planDto({}, { coordinates: destination }), new Date()),
     ).rejects.toThrow(BadRequestException);
+  });
+
+  it('sorts Journeys by carbon when sort=carbon is requested', async () => {
+    // Tram candidate: low carbon (Tram factor is small). Bike candidate:
+    // zero carbon (Vélo factor is 0) but let's make Bike slower so duration
+    // sort and carbon sort disagree.
+    const busTramProvider = {
+      getSegments: jest.fn().mockResolvedValue([
+        {
+          mode: TransportMode.Tram,
+          durationSeconds: 300,
+          from: { name: 'Corum', lat: 43.615, lon: 3.883 },
+          to: { name: 'Odysseum', lat: 43.6065, lon: 3.9165 },
+        },
+      ]),
+    } as unknown as BusTramMobilityProvider;
+    const bikeProvider = {
+      getSegments: jest.fn().mockResolvedValue([
+        {
+          mode: TransportMode.Velo,
+          durationSeconds: 900,
+          from: { name: 'Station A', lat: 43.615, lon: 3.883 },
+          to: { name: 'Station B', lat: 43.6065, lon: 3.9165 },
+        },
+      ]),
+    } as unknown as BikeMobilityProvider;
+    const service = new JourneyPlannerService(
+      mockGeocoding([]),
+      mockGtfsRt({ vehicles: [], fetchedAt: new Date() }),
+      carbonService,
+      busTramProvider,
+      bikeProvider,
+      mockWalkProvider(),
+    );
+
+    const byDuration = await service.plan(
+      planDto({ coordinates: origin }, { coordinates: destination }, 'duration'),
+      new Date(),
+    );
+    const byCarbon = await service.plan(
+      planDto({ coordinates: origin }, { coordinates: destination }, 'carbon'),
+      new Date(),
+    );
+
+    // Duration sort: Tram journey (300s core + walks) is faster than Bike (900s core + walks).
+    expect(byDuration[0].segments.some((s) => s.mode === TransportMode.Tram)).toBe(
+      true,
+    );
+    // Carbon sort: Vélo has a 0 g/km factor, strictly less carbon than Tram.
+    expect(byCarbon[0].segments.some((s) => s.mode === TransportMode.Velo)).toBe(
+      true,
+    );
+    expect(byDuration[0]).not.toBe(byCarbon[0]);
   });
 });

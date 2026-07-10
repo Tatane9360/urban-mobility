@@ -4,7 +4,7 @@ import { GbfsService } from '../integration/gbfs.service';
 import { GbfsSnapshot, GbfsStation } from '../integration/gbfs.types';
 import { GeoPoint } from './geo-point';
 import { haversineDistanceMeters } from './geo-distance';
-import { JourneySegment, toWaypoint } from './journey-segment';
+import { RawJourneySegment, toWaypoint } from './journey-segment';
 import { MobilityProvider } from './mobility-provider';
 
 // ponytail: average cycling speed in urban traffic, ~15 km/h — standard
@@ -26,7 +26,7 @@ export class BikeMobilityProvider implements MobilityProvider {
     from: GeoPoint,
     to: GeoPoint,
     departureTime: Date,
-  ): Promise<JourneySegment[]> {
+  ): Promise<RawJourneySegment[]> {
     void departureTime;
     const snapshot = this.gbfsService.getSnapshot();
     if (!snapshot) {

@@ -1,10 +1,10 @@
 import { GeoPoint } from './geo-point';
-import { JourneySegment } from './journey-segment';
+import { RawJourneySegment } from './journey-segment';
 
 export interface MobilityProvider {
   getSegments(
     from: GeoPoint,
     to: GeoPoint,
     departureTime: Date,
-  ): Promise<JourneySegment[]>;
+  ): Promise<RawJourneySegment[]>;
 }

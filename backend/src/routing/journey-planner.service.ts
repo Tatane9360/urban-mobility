@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { CarbonService } from '../carbon/carbon.service';
 import { GeocodingService } from '../integration/geocoding.service';
 import { GtfsRtService } from '../integration/gtfs-rt.service';
 import { BikeMobilityProvider } from './bike.mobility-provider';
@@ -6,8 +7,8 @@ import { BusTramMobilityProvider } from './bus-tram.mobility-provider';
 import { GeoPoint } from './geo-point';
 import { haversineDistanceMeters } from './geo-distance';
 import { Journey } from './journey';
-import { JourneySegment } from './journey-segment';
-import { PlanJourneyDto } from './dto/plan-journey.dto';
+import { RawJourneySegment } from './journey-segment';
+import { PlanJourneyDto, JourneySortCriterion } from './dto/plan-journey.dto';
 import { WalkMobilityProvider } from './walk.mobility-provider';
 
 // ponytail: below this, two points are "the same place" for bridging-walk
@@ -20,6 +21,7 @@ export class JourneyPlannerService {
   constructor(
     private readonly geocodingService: GeocodingService,
     private readonly gtfsRtService: GtfsRtService,
+    private readonly carbonService: CarbonService,
     private readonly busTramProvider: BusTramMobilityProvider,
     private readonly bikeProvider: BikeMobilityProvider,
     private readonly walkProvider: WalkMobilityProvider,
@@ -47,7 +49,7 @@ export class JourneyPlannerService {
         segments,
         departureTime,
       );
-      journeys.push(toJourney(bridged, degraded));
+      journeys.push(this.toJourney(bridged, degraded));
     }
 
     if (journeys.length === 0) {
@@ -56,10 +58,10 @@ export class JourneyPlannerService {
         destination,
         departureTime,
       );
-      journeys.push(toJourney(direct, degraded));
+      journeys.push(this.toJourney(direct, degraded));
     }
 
-    return journeys;
+    return sortJourneys(journeys, dto.sort);
   }
 
   private async resolvePoint(point: {
@@ -90,9 +92,9 @@ export class JourneyPlannerService {
   private async withBridgingWalks(
     origin: GeoPoint,
     destination: GeoPoint,
-    segments: JourneySegment[],
+    segments: RawJourneySegment[],
     departureTime: Date,
-  ): Promise<JourneySegment[]> {
+  ): Promise<RawJourneySegment[]> {
     const first = segments[0];
     const last = segments[segments.length - 1];
     const result = [...segments];
@@ -117,12 +119,27 @@ export class JourneyPlannerService {
 
     return result;
   }
+
+  private toJourney(rawSegments: RawJourneySegment[], degraded: boolean): Journey {
+    const segments = rawSegments.map((s) => this.carbonService.withCarbon(s));
+    const carbonGrams = this.carbonService.journeyCarbonGrams(segments);
+
+    return {
+      segments,
+      durationSeconds: segments.reduce((sum, s) => sum + s.durationSeconds, 0),
+      carbonGrams,
+      carComparison: this.carbonService.carComparison(segments, carbonGrams),
+      degraded,
+    };
+  }
 }
 
-function toJourney(segments: JourneySegment[], degraded: boolean): Journey {
-  return {
-    segments,
-    durationSeconds: segments.reduce((sum, s) => sum + s.durationSeconds, 0),
-    degraded,
-  };
+function sortJourneys(
+  journeys: Journey[],
+  criterion: JourneySortCriterion | undefined,
+): Journey[] {
+  if (criterion === 'carbon') {
+    return [...journeys].sort((a, b) => a.carbonGrams - b.carbonGrams);
+  }
+  return [...journeys].sort((a, b) => a.durationSeconds - b.durationSeconds);
 }

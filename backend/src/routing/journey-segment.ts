@@ -9,11 +9,18 @@ export interface JourneyWaypoint extends GeoPoint {
   name: string;
 }
 
-export interface JourneySegment {
+// A MobilityProvider only knows mode/duration/tracé — carbon is attached
+// afterwards by the planner (CarbonService), one calculation point instead of
+// duplicating emission-factor lookups in every provider (see #13).
+export interface RawJourneySegment {
   mode: TransportMode;
   durationSeconds: number;
   from: JourneyWaypoint;
   to: JourneyWaypoint;
+}
+
+export interface JourneySegment extends RawJourneySegment {
+  carbonGrams: number;
 }
 
 export function toWaypoint(point: GeoPoint, name: string): JourneyWaypoint {
