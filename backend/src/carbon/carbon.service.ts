@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { haversineDistanceMeters } from '../routing/geo-distance';
-import { CarComparison } from '../routing/journey';
 import { JourneySegment, RawJourneySegment } from '../routing/journey-segment';
 import {
   CAR_EMISSION_FACTOR_G_PER_KM,
+  CarComparison,
   EMISSION_FACTORS_G_PER_KM,
 } from './emission-factor';
 

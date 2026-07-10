@@ -18,3 +18,9 @@ export const EMISSION_FACTORS_G_PER_KM: Record<TransportMode, number> = {
 // single occupant — the comparison baseline required by the PRD ("gain
 // affiché" vs. individual car for the same trip).
 export const CAR_EMISSION_FACTOR_G_PER_KM = 193;
+
+export interface CarComparison {
+  carCarbonGrams: number;
+  savedCarbonGrams: number;
+  savedPercent: number;
+}

@@ -1,10 +1,5 @@
+import { CarComparison } from '../carbon/emission-factor';
 import { JourneySegment } from './journey-segment';
-
-export interface CarComparison {
-  carCarbonGrams: number;
-  savedCarbonGrams: number;
-  savedPercent: number;
-}
 
 export interface Journey {
   segments: JourneySegment[];
