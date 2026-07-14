@@ -5,8 +5,26 @@ import { OrsProfile, OrsRoute } from './openrouteservice.types';
 
 const ORS_DIRECTIONS_URL = 'https://api.openrouteservice.org/v2/directions';
 
-interface OrsDirectionsResponse {
-  routes: Array<{ summary: { distance: number; duration: number } }>;
+// The plain /directions endpoint only returns a summary. /geojson additionally
+// returns the route's full coordinate list, which step.way_points indexes
+// into — the only way to get a real lat/lon per turn instruction instead of
+// just the segment's overall from/to.
+interface OrsGeoJsonResponse {
+  features: Array<{
+    geometry: { coordinates: Array<[number, number]> };
+    properties: {
+      summary: { distance: number; duration: number };
+      segments: Array<{
+        steps: Array<{
+          instruction: string;
+          distance: number;
+          duration: number;
+          type: number;
+          way_points: [number, number];
+        }>;
+      }>;
+    };
+  }>;
 }
 
 @Injectable()
@@ -28,7 +46,7 @@ export class OpenRouteService {
     profile: OrsProfile,
   ): Promise<OrsRoute | null> {
     try {
-      const response = await fetch(`${ORS_DIRECTIONS_URL}/${profile}`, {
+      const response = await fetch(`${ORS_DIRECTIONS_URL}/${profile}/geojson`, {
         method: 'POST',
         headers: {
           Authorization: this.apiKey,
@@ -39,6 +57,8 @@ export class OpenRouteService {
             [from.lon, from.lat],
             [to.lon, to.lat],
           ],
+          instructions: true,
+          language: 'fr',
         }),
       });
       if (!response.ok) {
@@ -46,14 +66,28 @@ export class OpenRouteService {
         return null;
       }
 
-      const body = (await response.json()) as OrsDirectionsResponse;
-      const summary = body.routes[0]?.summary;
+      const body = (await response.json()) as OrsGeoJsonResponse;
+      const feature = body.features[0];
+      const summary = feature?.properties.summary;
       if (!summary) {
         return null;
       }
+      const coordinates = feature.geometry.coordinates;
+      const steps = feature.properties.segments?.[0]?.steps ?? [];
       return {
         distanceMeters: summary.distance,
         durationSeconds: summary.duration,
+        steps: steps.map((s) => {
+          const [lon, lat] = coordinates[s.way_points[1]];
+          return {
+            instruction: s.instruction,
+            distanceMeters: s.distance,
+            durationSeconds: s.duration,
+            type: s.type,
+            location: { lat, lon },
+          };
+        }),
+        geometry: coordinates.map(([lon, lat]) => ({ lat, lon })),
       };
     } catch (err) {
       this.logger.warn(`ORS ${profile} request failed: ${(err as Error).message}`);

@@ -14,6 +14,8 @@ const NEARBY_STOP_RADIUS_METERS = 500;
 
 interface CandidateRow {
   routeType: number;
+  routeShortName: string | null;
+  tripHeadsign: string | null;
   departureTime: string;
   arrivalTime: string;
   fromStopName: string;
@@ -42,6 +44,8 @@ export class BusTramMobilityProvider implements MobilityProvider {
     const rows: CandidateRow[] = await this.dataSource.query(
       `
       SELECT r."routeType" AS "routeType",
+             r."routeShortName" AS "routeShortName",
+             t."tripHeadsign" AS "tripHeadsign",
              st_from."departureTime" AS "departureTime",
              st_to."arrivalTime" AS "arrivalTime",
              stop_from."stopName" AS "fromStopName",
@@ -98,6 +102,8 @@ export class BusTramMobilityProvider implements MobilityProvider {
         distanceMeters: haversineDistanceMeters(from, to),
         from,
         to,
+        routeShortName: row.routeShortName,
+        tripHeadsign: row.tripHeadsign,
       };
     });
   }

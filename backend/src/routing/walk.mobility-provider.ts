@@ -42,6 +42,8 @@ export class WalkMobilityProvider implements MobilityProvider {
         distanceMeters,
         from: toWaypoint(from, ''),
         to: toWaypoint(to, ''),
+        steps: route?.steps,
+        geometry: route?.geometry?.map((p) => toWaypoint(p, '')),
       },
     ];
   }

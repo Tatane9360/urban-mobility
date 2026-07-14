@@ -78,6 +78,8 @@ export class BikeMobilityProvider implements MobilityProvider {
         distanceMeters,
         from: toWaypoint(pickupStation, pickupStation.name),
         to: toWaypoint(dropoffStation, dropoffStation.name),
+        steps: route?.steps,
+        geometry: route?.geometry?.map((p) => toWaypoint(p, '')),
       },
     ];
   }

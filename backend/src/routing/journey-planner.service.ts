@@ -35,13 +35,19 @@ export class JourneyPlannerService {
 
     const degraded = this.gtfsRtService.getSnapshot() === null;
 
-    const candidates = await Promise.all([
+    // A direct Marche candidate is computed alongside Bus/Tram and Vélo,
+    // always — not just as a last-resort fallback — so the UI can offer a
+    // real "walk only" option (with its own duration) even when a faster
+    // multimodal Journey exists, per the mode-icon picker (like Google Maps'
+    // per-mode duration row).
+    const [transitSegments, bikeSegments, walkSegments] = await Promise.all([
       this.busTramProvider.getSegments(origin, destination, departureTime),
       this.bikeProvider.getSegments(origin, destination, departureTime),
+      this.walkProvider.getSegments(origin, destination, departureTime),
     ]);
 
     const journeys: Journey[] = [];
-    for (const segments of candidates) {
+    for (const segments of [transitSegments, bikeSegments]) {
       if (segments.length === 0) continue;
       const bridged = await this.withBridgingWalks(
         origin,
@@ -49,17 +55,9 @@ export class JourneyPlannerService {
         segments,
         departureTime,
       );
-      journeys.push(this.toJourney(bridged, degraded));
+      journeys.push(this.toJourney(bridged, degraded, departureTime));
     }
-
-    if (journeys.length === 0) {
-      const direct = await this.walkProvider.getSegments(
-        origin,
-        destination,
-        departureTime,
-      );
-      journeys.push(this.toJourney(direct, degraded));
-    }
+    journeys.push(this.toJourney(walkSegments, degraded, departureTime));
 
     return sortJourneys(journeys, dto.sort);
   }
@@ -120,8 +118,22 @@ export class JourneyPlannerService {
     return result;
   }
 
-  private toJourney(rawSegments: RawJourneySegment[], degraded: boolean): Journey {
-    const segments = rawSegments.map((s) => this.carbonService.withCarbon(s));
+  private toJourney(
+    rawSegments: RawJourneySegment[],
+    degraded: boolean,
+    departureTime: Date,
+  ): Journey {
+    let cursor = departureTime;
+    const segments = rawSegments.map((s) => {
+      const startTime = cursor;
+      const endTime = new Date(cursor.getTime() + s.durationSeconds * 1000);
+      cursor = endTime;
+      return {
+        ...this.carbonService.withCarbon(s),
+        startTime: startTime.toISOString(),
+        endTime: endTime.toISOString(),
+      };
+    });
     const carbonGrams = this.carbonService.journeyCarbonGrams(segments);
 
     return {
