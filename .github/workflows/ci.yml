@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: urbanmobility
+          POSTGRES_PASSWORD: urbanmobility
+          POSTGRES_DB: urbanmobility
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U urbanmobility"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_USERNAME: urbanmobility
+      DB_PASSWORD: urbanmobility
+      DB_NAME: urbanmobility
+      JWT_SECRET: test-secret
+      OPENROUTESERVICE_API_KEY: test-key
+      GTFS_STATIC_URL: https://example.com/gtfs.zip
+      GBFS_STATION_INFORMATION_URL: https://example.com/station_information.json
+      GBFS_STATION_STATUS_URL: https://example.com/station_status.json
+      GTFS_RT_URBAIN_VEHICLE_POSITION_URL: https://example.com/urbain.pb
+      GTFS_RT_SUBURBAIN_VEHICLE_POSITION_URL: https://example.com/suburbain.pb
+      CORS_ORIGIN: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.12.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+          cache-dependency-path: backend/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+        working-directory: backend
+      - run: pnpm lint
+        working-directory: backend
+      - run: pnpm test
+        working-directory: backend
+
+  frontend:
+    runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_API_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.12.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+        working-directory: frontend
+      - run: pnpm build
+        working-directory: frontend
