@@ -1,3 +1,4 @@
+import { ApiProperty } from '@nestjs/swagger';
 import { TransportMode } from '../../common/transport-mode.enum';
 import { MobilityProfile } from '../../auth/entities/mobility-profile.entity';
 
@@ -12,8 +13,24 @@ interface ProfileFields {
 }
 
 export class ProfileResponseDto {
+  @ApiProperty({
+    description: 'Preferred Transport Modes',
+    enum: TransportMode,
+    isArray: true,
+    example: [TransportMode.Tram, TransportMode.Velo],
+  })
   preferredModes: TransportMode[];
+
+  @ApiProperty({
+    description: 'Favorite addresses',
+    example: ['Place de la Comédie, Montpellier'],
+  })
   favoriteAddresses: string[];
+
+  @ApiProperty({
+    description: 'PMR (reduced mobility) accessibility flag',
+    example: false,
+  })
   pmrAccessibility: boolean;
 
   private constructor(fields: ProfileFields) {
