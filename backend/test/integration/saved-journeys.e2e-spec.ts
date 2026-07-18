@@ -8,6 +8,15 @@ import { AppModule } from '../../src/app.module';
 import { User } from '../../src/auth/entities/user.entity';
 import { TransportMode } from '../../src/common/transport-mode.enum';
 
+interface SavedJourneyResponse {
+  id: string;
+  savedAt: string;
+  durationSeconds: number;
+  carbonGrams: number;
+  degraded: boolean;
+  segments: Array<{ mode: TransportMode }>;
+}
+
 function sampleJourneyPayload() {
   return {
     segments: [
@@ -77,17 +86,18 @@ describe('SavedJourneys (e2e)', () => {
         .set('Authorization', `Bearer ${token}`)
         .send(sampleJourneyPayload());
 
+      const body = response.body as SavedJourneyResponse;
       expect(response.status).toBe(201);
-      expect(response.body).toMatchObject({
+      expect(body).toMatchObject({
         durationSeconds: 720,
         carbonGrams: 11.56,
         degraded: false,
       });
-      expect(response.body.segments).toHaveLength(2);
-      expect(response.body.segments[0].mode).toBe(TransportMode.Marche);
-      expect(response.body.segments[1].mode).toBe(TransportMode.Tram);
-      expect(response.body.id).toBeDefined();
-      expect(response.body.savedAt).toBeDefined();
+      expect(body.segments).toHaveLength(2);
+      expect(body.segments[0].mode).toBe(TransportMode.Marche);
+      expect(body.segments[1].mode).toBe(TransportMode.Tram);
+      expect(body.id).toBeDefined();
+      expect(body.savedAt).toBeDefined();
     });
 
     it('returns 401 without a bearer token and saves nothing', async () => {
@@ -97,7 +107,7 @@ describe('SavedJourneys (e2e)', () => {
 
       expect(response.status).toBe(401);
 
-      const count = await userRepository.query(
+      const count = await userRepository.query<Array<{ count: string }>>(
         'SELECT COUNT(*) FROM saved_journey',
       );
       expect(Number(count[0].count)).toBe(0);
@@ -120,9 +130,10 @@ describe('SavedJourneys (e2e)', () => {
         .get('/journeys/saved')
         .set('Authorization', `Bearer ${token}`);
 
+      const body = response.body as SavedJourneyResponse[];
       expect(response.status).toBe(200);
-      expect(response.body).toHaveLength(2);
-      expect(response.body[0].durationSeconds).toBe(300);
+      expect(body).toHaveLength(2);
+      expect(body[0].durationSeconds).toBe(300);
     });
 
     it('returns 401 without a bearer token', async () => {
