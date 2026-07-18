@@ -12,8 +12,12 @@ function mockGbfsService(snapshot: GbfsSnapshot | null): GbfsService {
   return { getSnapshot: () => snapshot } as unknown as GbfsService;
 }
 
-function mockOrs(route: { distanceMeters: number; durationSeconds: number } | null): OpenRouteService {
-  return { getRoute: jest.fn().mockResolvedValue(route) } as unknown as OpenRouteService;
+function mockOrs(
+  route: { distanceMeters: number; durationSeconds: number } | null,
+): OpenRouteService {
+  return {
+    getRoute: jest.fn().mockResolvedValue(route),
+  } as unknown as OpenRouteService;
 }
 
 function snapshotWithStations(

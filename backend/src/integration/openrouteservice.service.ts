@@ -90,7 +90,9 @@ export class OpenRouteService {
         geometry: coordinates.map(([lon, lat]) => ({ lat, lon })),
       };
     } catch (err) {
-      this.logger.warn(`ORS ${profile} request failed: ${(err as Error).message}`);
+      this.logger.warn(
+        `ORS ${profile} request failed: ${(err as Error).message}`,
+      );
       return null;
     }
   }

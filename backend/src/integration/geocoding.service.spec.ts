@@ -23,7 +23,7 @@ describe('GeocodingService', () => {
           },
         ]),
       ),
-    ) as unknown as typeof fetch;
+    );
 
     const service = new GeocodingService();
     const results = await service.geocode('Comédie');
@@ -38,9 +38,7 @@ describe('GeocodingService', () => {
   });
 
   it('returns an empty array when Nominatim has no match', async () => {
-    global.fetch = jest.fn(() =>
-      Promise.resolve(jsonResponse([])),
-    ) as unknown as typeof fetch;
+    global.fetch = jest.fn(() => Promise.resolve(jsonResponse([])));
 
     const service = new GeocodingService();
     const results = await service.geocode('adresse inexistante xyz');
@@ -55,7 +53,7 @@ describe('GeocodingService', () => {
       capturedUrl = url.toString();
       capturedHeaders = init?.headers;
       return Promise.resolve(jsonResponse([]));
-    }) as unknown as typeof fetch;
+    });
 
     const service = new GeocodingService();
     await service.geocode('Comédie');
@@ -70,7 +68,7 @@ describe('GeocodingService', () => {
   it('throws a ServiceUnavailableException when Nominatim responds with a non-ok status', async () => {
     global.fetch = jest.fn(() =>
       Promise.resolve({ ok: false, status: 503 } as unknown as Response),
-    ) as unknown as typeof fetch;
+    );
 
     const service = new GeocodingService();
 

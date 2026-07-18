@@ -87,7 +87,11 @@ export class BusTramMobilityProvider implements MobilityProvider {
     );
 
     return rows.map((row) => {
-      const from = { name: row.fromStopName, lat: row.fromLat, lon: row.fromLon };
+      const from = {
+        name: row.fromStopName,
+        lat: row.fromLat,
+        lon: row.fromLon,
+      };
       const to = { name: row.toStopName, lat: row.toLat, lon: row.toLon };
       return {
         mode: routeTypeToMode(row.routeType),

@@ -44,7 +44,7 @@ describe('Geocode (e2e)', () => {
           },
         ]),
       ),
-    ) as unknown as typeof fetch;
+    );
 
     const response = await request(app.getHttpServer()).get(
       '/geocode?q=Comédie',
@@ -61,9 +61,7 @@ describe('Geocode (e2e)', () => {
   });
 
   it('GET /geocode?q=... returns an empty array when nothing matches', async () => {
-    global.fetch = jest.fn(() =>
-      Promise.resolve(jsonResponse([])),
-    ) as unknown as typeof fetch;
+    global.fetch = jest.fn(() => Promise.resolve(jsonResponse([])));
 
     const response = await request(app.getHttpServer()).get(
       '/geocode?q=adresse-totalement-inexistante',
@@ -82,7 +80,7 @@ describe('Geocode (e2e)', () => {
   it('GET /geocode?q=... returns 503 when Nominatim is unavailable', async () => {
     global.fetch = jest.fn(() =>
       Promise.resolve({ ok: false, status: 503 } as unknown as Response),
-    ) as unknown as typeof fetch;
+    );
 
     const response = await request(app.getHttpServer()).get(
       '/geocode?q=Comédie',

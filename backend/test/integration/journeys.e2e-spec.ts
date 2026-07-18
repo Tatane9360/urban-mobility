@@ -84,9 +84,9 @@ describe('Journeys (e2e)', () => {
     expect(journey.durationSeconds).toBeGreaterThan(0);
     expect(typeof journey.degraded).toBe('boolean');
     expect(journey.carbonGrams).toBeGreaterThan(0);
-    expect(journey.segments.every((s) => typeof s.carbonGrams === 'number')).toBe(
-      true,
-    );
+    expect(
+      journey.segments.every((s) => typeof s.carbonGrams === 'number'),
+    ).toBe(true);
     expect(journey.carComparison.carCarbonGrams).toBeGreaterThan(
       journey.carbonGrams,
     );

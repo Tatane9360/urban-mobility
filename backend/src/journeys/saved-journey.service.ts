@@ -39,7 +39,9 @@ export class SavedJourneyService {
       relations: { segments: true },
       order: { savedAt: 'DESC' },
     });
-    return journeys.map((journey) => SavedJourneyResponseDto.fromEntity(journey));
+    return journeys.map((journey) =>
+      SavedJourneyResponseDto.fromEntity(journey),
+    );
   }
 
   private toSegmentEntity(

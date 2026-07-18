@@ -2,8 +2,12 @@ import { OpenRouteService } from '../integration/openrouteservice.service';
 import { TransportMode } from '../common/transport-mode.enum';
 import { WalkMobilityProvider } from './walk.mobility-provider';
 
-function mockOrs(route: { distanceMeters: number; durationSeconds: number } | null): OpenRouteService {
-  return { getRoute: jest.fn().mockResolvedValue(route) } as unknown as OpenRouteService;
+function mockOrs(
+  route: { distanceMeters: number; durationSeconds: number } | null,
+): OpenRouteService {
+  return {
+    getRoute: jest.fn().mockResolvedValue(route),
+  } as unknown as OpenRouteService;
 }
 
 describe('WalkMobilityProvider', () => {

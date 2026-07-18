@@ -1,5 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { CarbonedJourneySegment, RawJourneySegment } from '../routing/journey-segment';
+import {
+  CarbonedJourneySegment,
+  RawJourneySegment,
+} from '../routing/journey-segment';
 import {
   CAR_EMISSION_FACTOR_G_PER_KM,
   CarComparison,
@@ -30,8 +33,7 @@ export class CarbonService {
     journeyCarbonGrams: number,
   ): CarComparison {
     const totalDistanceKm =
-      segments.reduce((sum, segment) => sum + segment.distanceMeters, 0) /
-      1000;
+      segments.reduce((sum, segment) => sum + segment.distanceMeters, 0) / 1000;
     const carCarbonGrams = totalDistanceKm * CAR_EMISSION_FACTOR_G_PER_KM;
     const savedCarbonGrams = carCarbonGrams - journeyCarbonGrams;
     const savedPercent =

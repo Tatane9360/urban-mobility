@@ -42,7 +42,9 @@ describe('CarbonService', () => {
 
     const total = service.journeyCarbonGrams(segments);
 
-    expect(total).toBeCloseTo(segments[0].carbonGrams + segments[1].carbonGrams);
+    expect(total).toBeCloseTo(
+      segments[0].carbonGrams + segments[1].carbonGrams,
+    );
   });
 
   it('reports a car comparison with a strictly higher footprint than transit', () => {

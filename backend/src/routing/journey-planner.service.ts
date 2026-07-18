@@ -106,7 +106,9 @@ export class JourneyPlannerService {
       result.unshift(...approach);
     }
 
-    if (haversineDistanceMeters(destination, last.to) > NEGLIGIBLE_WALK_METERS) {
+    if (
+      haversineDistanceMeters(destination, last.to) > NEGLIGIBLE_WALK_METERS
+    ) {
       const exit = await this.walkProvider.getSegments(
         last.to,
         destination,

@@ -14,7 +14,13 @@ function jsonResponse(body: unknown): Response {
 function geojsonResponse(
   summary: { distance: number; duration: number },
   coordinates: Array<[number, number]> = [],
-  steps: Array<{ instruction: string; distance: number; duration: number; type: number; way_points: [number, number] }> = [],
+  steps: Array<{
+    instruction: string;
+    distance: number;
+    duration: number;
+    type: number;
+    way_points: [number, number];
+  }> = [],
 ) {
   return jsonResponse({
     features: [
@@ -39,12 +45,17 @@ describe('OpenRouteService', () => {
   it('returns distance/duration parsed from the ORS directions response', async () => {
     global.fetch = jest.fn(() =>
       Promise.resolve(geojsonResponse({ distance: 3816.1, duration: 773.5 })),
-    ) as unknown as typeof fetch;
+    );
 
     const service = new OpenRouteService(mockConfig());
     const route = await service.getRoute(corum, odysseum, 'cycling-regular');
 
-    expect(route).toEqual({ distanceMeters: 3816.1, durationSeconds: 773.5, steps: [], geometry: [] });
+    expect(route).toEqual({
+      distanceMeters: 3816.1,
+      durationSeconds: 773.5,
+      steps: [],
+      geometry: [],
+    });
   });
 
   it('parses turn-by-turn steps with their maneuver location from the route geometry', async () => {
@@ -57,11 +68,23 @@ describe('OpenRouteService', () => {
     global.fetch = jest.fn(() =>
       Promise.resolve(
         geojsonResponse({ distance: 100, duration: 60 }, coordinates, [
-          { instruction: 'Tournez à droite', distance: 50, duration: 30, type: 1, way_points: [0, 1] },
-          { instruction: 'Continuez tout droit', distance: 50, duration: 30, type: 11, way_points: [1, 3] },
+          {
+            instruction: 'Tournez à droite',
+            distance: 50,
+            duration: 30,
+            type: 1,
+            way_points: [0, 1],
+          },
+          {
+            instruction: 'Continuez tout droit',
+            distance: 50,
+            duration: 30,
+            type: 11,
+            way_points: [1, 3],
+          },
         ]),
       ),
-    ) as unknown as typeof fetch;
+    );
 
     const service = new OpenRouteService(mockConfig());
     const route = await service.getRoute(corum, odysseum, 'foot-walking');
@@ -91,8 +114,10 @@ describe('OpenRouteService', () => {
       [3.917, 43.607],
     ];
     global.fetch = jest.fn(() =>
-      Promise.resolve(geojsonResponse({ distance: 100, duration: 60 }, coordinates)),
-    ) as unknown as typeof fetch;
+      Promise.resolve(
+        geojsonResponse({ distance: 100, duration: 60 }, coordinates),
+      ),
+    );
 
     const service = new OpenRouteService(mockConfig());
     const route = await service.getRoute(corum, odysseum, 'foot-walking');
@@ -111,7 +136,7 @@ describe('OpenRouteService', () => {
       capturedHeaders = init?.headers;
       capturedBody = init?.body as string;
       return Promise.resolve(geojsonResponse({ distance: 1, duration: 1 }));
-    }) as unknown as typeof fetch;
+    });
 
     const service = new OpenRouteService(mockConfig());
     await service.getRoute(corum, odysseum, 'foot-walking');
@@ -132,7 +157,7 @@ describe('OpenRouteService', () => {
   it('returns null when ORS responds with a non-ok status', async () => {
     global.fetch = jest.fn(() =>
       Promise.resolve({ ok: false, status: 404 } as unknown as Response),
-    ) as unknown as typeof fetch;
+    );
 
     const service = new OpenRouteService(mockConfig());
     const route = await service.getRoute(corum, odysseum, 'foot-walking');
@@ -141,9 +166,7 @@ describe('OpenRouteService', () => {
   });
 
   it('returns null when the fetch call throws', async () => {
-    global.fetch = jest.fn(() =>
-      Promise.reject(new Error('network down')),
-    ) as unknown as typeof fetch;
+    global.fetch = jest.fn(() => Promise.reject(new Error('network down')));
 
     const service = new OpenRouteService(mockConfig());
     const route = await service.getRoute(corum, odysseum, 'foot-walking');
@@ -154,7 +177,7 @@ describe('OpenRouteService', () => {
   it('returns null when the response has no features', async () => {
     global.fetch = jest.fn(() =>
       Promise.resolve(jsonResponse({ features: [] })),
-    ) as unknown as typeof fetch;
+    );
 
     const service = new OpenRouteService(mockConfig());
     const route = await service.getRoute(corum, odysseum, 'foot-walking');
