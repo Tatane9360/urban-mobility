@@ -1,4 +1,7 @@
-import { Leaf, WarningCircle } from '@phosphor-icons/react/dist/ssr';
+'use client';
+
+import { useState } from 'react';
+import { Leaf, Trash, WarningCircle } from '@phosphor-icons/react/dist/ssr';
 import { SegmentBadge } from '../../journey-planner/components/SegmentBadge';
 import type { SavedJourney } from '../types';
 
@@ -21,7 +24,25 @@ function formatDate(iso: string): string {
   });
 }
 
-export function SavedJourneyCard({ journey }: { journey: SavedJourney }) {
+interface SavedJourneyCardProps {
+  journey: SavedJourney;
+  onDelete: (id: string) => Promise<void>;
+}
+
+export function SavedJourneyCard({ journey, onDelete }: SavedJourneyCardProps) {
+  const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const label = `${formatDuration(journey.durationSeconds)} du ${formatDate(journey.savedAt)}`;
+
+  async function handleDelete() {
+    setDeleting(true);
+    try {
+      await onDelete(journey.id);
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   const first = journey.segments[0];
   const last = journey.segments[journey.segments.length - 1];
   // Walk segments touching a raw geocoded point (not a matched transit stop)
@@ -41,12 +62,22 @@ export function SavedJourneyCard({ journey }: { journey: SavedJourney }) {
             </p>
           )}
         </div>
-        <div className="flex shrink-0 flex-col items-end gap-1">
-          <span className="text-xs text-zinc-500 dark:text-zinc-400">{formatDate(journey.savedAt)}</span>
-          <div className="flex items-center gap-1.5 text-xs font-medium text-zinc-600 dark:text-zinc-400">
-            <Leaf size={14} />
-            <span>{formatGrams(journey.carbonGrams)} CO₂e</span>
+        <div className="flex shrink-0 items-start gap-2">
+          <div className="flex flex-col items-end gap-1">
+            <span className="text-xs text-zinc-500 dark:text-zinc-400">{formatDate(journey.savedAt)}</span>
+            <div className="flex items-center gap-1.5 text-xs font-medium text-zinc-600 dark:text-zinc-400">
+              <Leaf size={14} />
+              <span>{formatGrams(journey.carbonGrams)} CO₂e</span>
+            </div>
           </div>
+          <button
+            type="button"
+            onClick={() => setConfirming(true)}
+            aria-label={`Supprimer l'itinéraire ${label}`}
+            className="shrink-0 rounded-full p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-red-600 dark:hover:bg-zinc-800 dark:hover:text-red-400"
+          >
+            <Trash size={16} />
+          </button>
         </div>
       </div>
 
@@ -55,6 +86,29 @@ export function SavedJourneyCard({ journey }: { journey: SavedJourney }) {
           <SegmentBadge key={`${segment.mode}-${index}`} segment={segment} />
         ))}
       </div>
+
+      {confirming && (
+        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-md bg-red-50 px-2.5 py-2 text-xs text-red-700 dark:bg-red-950/40 dark:text-red-400">
+          <span className="flex-1">Supprimer définitivement cet itinéraire&nbsp;?</span>
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={deleting}
+            aria-label={`Confirmer la suppression de l'itinéraire ${label}`}
+            className="rounded-md bg-red-600 px-2.5 py-1 font-medium text-white hover:bg-red-700 disabled:opacity-40"
+          >
+            {deleting ? 'Suppression…' : 'Supprimer'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setConfirming(false)}
+            disabled={deleting}
+            className="rounded-md px-2.5 py-1 font-medium hover:bg-red-100 disabled:opacity-40 dark:hover:bg-red-900/40"
+          >
+            Annuler
+          </button>
+        </div>
+      )}
 
       {journey.degraded && (
         <div className="mt-3 flex items-center gap-1.5 rounded-md bg-amber-50 px-2.5 py-1.5 text-xs text-amber-700 dark:bg-amber-950/40 dark:text-amber-400">

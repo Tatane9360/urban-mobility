@@ -14,4 +14,12 @@ export interface UpdateProfileRequest {
   pmrAccessibility?: boolean;
 }
 
+// Mirrors backend/src/auth/dto/user-data-export.dto.ts
+export interface UserDataExport {
+  exportedAt: string;
+  user: { id: string; email: string };
+  mobilityProfile: Profile;
+  savedJourneys: unknown[];
+}
+
 export { TransportMode };

@@ -4,6 +4,7 @@ import {
   IsLatitude,
   IsLongitude,
   IsNumber,
+  IsOptional,
   IsString,
   Min,
   ValidateNested,
@@ -28,6 +29,14 @@ export class SaveJourneySegmentDto {
   @IsNumber()
   @Min(0)
   durationSeconds: number;
+
+  // Optional: pre-existing clients (and rows saved before this field existed)
+  // omit it. Missing distance just means that Journey contributes 0 km to the
+  // car baseline in GET /journeys/saved/stats, never a wrong total.
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  distanceMeters?: number;
 
   @IsNumber()
   @Min(0)

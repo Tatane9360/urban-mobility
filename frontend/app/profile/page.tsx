@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/src/features/auth/hooks/useAuth';
 import { useProfile } from '@/src/features/profile/hooks/useProfile';
 import { ProfileForm } from '@/src/features/profile/components/ProfileForm';
+import { UserDataSection } from '@/src/features/profile/components/UserDataSection';
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -28,6 +29,7 @@ export default function ProfilePage() {
       </h1>
       <p className="mb-6 text-sm text-zinc-600 dark:text-zinc-400">{user?.email}</p>
       <ProfileForm profile={profile} saving={saving} onSave={save} />
+      {user && <UserDataSection email={user.email} />}
     </div>
   );
 }

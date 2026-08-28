@@ -4,13 +4,14 @@ import { JwtModule } from '@nestjs/jwt';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from './entities/user.entity';
 import { MobilityProfile } from './entities/mobility-profile.entity';
+import { SavedJourney } from '../journeys/entities/saved-journey.entity';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtAuthGuard } from './jwt.guard';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, MobilityProfile]),
+    TypeOrmModule.forFeature([User, MobilityProfile, SavedJourney]),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

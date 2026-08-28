@@ -39,6 +39,13 @@ export class SavedJourneySegment {
   @Column('int')
   durationSeconds!: number;
 
+  // Needed by GET /journeys/saved/stats to rebuild the car baseline
+  // (distanceKm * CAR_EMISSION_FACTOR_G_PER_KM) — carbonGrams alone can't be
+  // inverted back to a distance, the Marche/Vélo emission factor is 0.
+  // Defaults to 0 so rows saved before this column existed still aggregate.
+  @Column('float', { default: 0 })
+  distanceMeters!: number;
+
   @Column('float')
   carbonGrams!: number;
 

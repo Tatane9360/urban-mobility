@@ -28,8 +28,12 @@ export class CarbonService {
     return segments.reduce((sum, segment) => sum + segment.carbonGrams, 0);
   }
 
+  // Takes only { distanceMeters } rather than full segments: that is all the
+  // car baseline needs, and it lets the cumulative footprint (#5) pass its
+  // period totals as a single equivalent segment instead of re-deriving
+  // CAR_EMISSION_FACTOR_G_PER_KM outside this file.
   carComparison(
-    segments: CarbonedJourneySegment[],
+    segments: Pick<CarbonedJourneySegment, 'distanceMeters'>[],
     journeyCarbonGrams: number,
   ): CarComparison {
     const totalDistanceKm =

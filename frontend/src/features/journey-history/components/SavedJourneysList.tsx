@@ -13,7 +13,13 @@ function CardSkeleton() {
   );
 }
 
-export function SavedJourneysList({ journeys, loading }: { journeys: SavedJourney[]; loading: boolean }) {
+interface SavedJourneysListProps {
+  journeys: SavedJourney[];
+  loading: boolean;
+  onDelete: (id: string) => Promise<void>;
+}
+
+export function SavedJourneysList({ journeys, loading, onDelete }: SavedJourneysListProps) {
   if (loading) {
     return (
       <div className="flex flex-col gap-3" aria-busy="true" aria-label="Chargement de l'historique">
@@ -35,7 +41,7 @@ export function SavedJourneysList({ journeys, loading }: { journeys: SavedJourne
   return (
     <div className="flex flex-col gap-3">
       {journeys.map((journey) => (
-        <SavedJourneyCard key={journey.id} journey={journey} />
+        <SavedJourneyCard key={journey.id} journey={journey} onDelete={onDelete} />
       ))}
     </div>
   );

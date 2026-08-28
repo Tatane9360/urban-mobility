@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../../auth/hooks/useAuth';
 import { listSavedJourneys } from '../api/list-saved-journeys';
+import { deleteSavedJourney } from '../api/delete-saved-journey';
 import type { SavedJourney } from '../types';
 
 export function useSavedJourneys() {
@@ -15,5 +16,11 @@ export function useSavedJourneys() {
       .finally(() => setFetched(true));
   }, [token]);
 
-  return { journeys, loading: token !== null && !fetched };
+  async function remove(id: string) {
+    if (!token) return;
+    await deleteSavedJourney(token, id);
+    setJourneys((current) => current.filter((journey) => journey.id !== id));
+  }
+
+  return { journeys, loading: token !== null && !fetched, remove };
 }

@@ -19,3 +19,26 @@ export interface SavedJourney {
   degraded: boolean;
   savedAt: string;
 }
+
+// Mirrors backend/src/journeys/dto/saved-journey-stats.dto.ts — the
+// cumulative footprint, aggregated server-side over the user's saved
+// Journeys (the car baseline needs distanceMeters, which the per-Journey
+// list endpoint above does not return).
+export interface SavedJourneyModeStats {
+  mode: TransportMode;
+  journeySegments: number;
+  durationSeconds: number;
+  distanceMeters: number;
+  carbonGrams: number;
+}
+
+export interface SavedJourneyStats {
+  journeyCount: number;
+  durationSeconds: number;
+  distanceMeters: number;
+  carbonGrams: number;
+  carCarbonGrams: number;
+  savedCarbonGrams: number;
+  savedPercent: number;
+  byMode: SavedJourneyModeStats[];
+}
