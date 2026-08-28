@@ -4,6 +4,8 @@ import { DataSource } from 'typeorm';
 import { TransportMode } from '../common/transport-mode.enum';
 import { GeoPoint } from './geo-point';
 import { haversineDistanceMeters } from './geo-distance';
+import { GtfsRtService } from '../integration/gtfs-rt.service';
+import { tripStopKey } from '../integration/gtfs-rt.types';
 import { RawJourneySegment } from './journey-segment';
 import { MobilityProvider } from './mobility-provider';
 
@@ -31,7 +33,11 @@ const CALENDAR_DAY_COLUMNS = [
 
 interface CandidateRow {
   routeType: number;
+  routeId: string;
   routeShortName: string | null;
+  tripId: string;
+  fromStopId: string;
+  toStopId: string;
   tripHeadsign: string | null;
   departureTime: string;
   arrivalTime: string;
@@ -45,7 +51,10 @@ interface CandidateRow {
 
 @Injectable()
 export class BusTramMobilityProvider implements MobilityProvider {
-  constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
+  constructor(
+    @InjectDataSource() private readonly dataSource: DataSource,
+    private readonly gtfsRtService: GtfsRtService,
+  ) {}
 
   // ponytail: raw SQL, not the TypeORM query builder — same call made by
   // gtfs-import.e2e-spec.ts's own spatial query, since QueryBuilder can't
@@ -68,8 +77,12 @@ export class BusTramMobilityProvider implements MobilityProvider {
     const rows: CandidateRow[] = await this.dataSource.query(
       `
       SELECT r."routeType" AS "routeType",
+             r."routeId" AS "routeId",
              r."routeShortName" AS "routeShortName",
+             t."tripId" AS "tripId",
              t."tripHeadsign" AS "tripHeadsign",
+             stop_from."stopId" AS "fromStopId",
+             stop_to."stopId" AS "toStopId",
              st_from."departureTime" AS "departureTime",
              st_to."arrivalTime" AS "arrivalTime",
              stop_from."stopName" AS "fromStopName",
@@ -114,6 +127,16 @@ export class BusTramMobilityProvider implements MobilityProvider {
       ],
     );
 
+    // Only a fresh GTFS-RT snapshot may shift a schedule; a stale one is
+    // served as pure theory (see GtfsRtService.isFresh). Freshness is measured
+    // against the wall clock, deliberately NOT against departureTime — the
+    // latter is the itinerary's date, which a user can set weeks ahead, and
+    // comparing a snapshot's age to it would read as "fresh" for any future
+    // search.
+    const delays = this.gtfsRtService.isFresh()
+      ? this.gtfsRtService.getSnapshot()!.delays
+      : null;
+
     return rows.map((row) => {
       const from = {
         name: row.fromStopName,
@@ -121,11 +144,22 @@ export class BusTramMobilityProvider implements MobilityProvider {
         lon: row.fromLon,
       };
       const to = { name: row.toStopName, lat: row.toLat, lon: row.toLon };
+      const departureDelay =
+        delays?.get(tripStopKey(row.tripId, row.fromStopId))?.delaySeconds ??
+        null;
+      const arrivalDelay =
+        delays?.get(tripStopKey(row.tripId, row.toStopId))?.delaySeconds ??
+        // A trip delayed at boarding but with no update at the alighting stop
+        // is still late on arrival — carry the departure delay forward rather
+        // than inventing a miraculous catch-up.
+        departureDelay;
+      const realtime = departureDelay !== null || arrivalDelay !== null;
       return {
         mode: routeTypeToMode(row.routeType),
         durationSeconds:
-          gtfsTimeToSeconds(row.arrivalTime) -
-          gtfsTimeToSeconds(row.departureTime),
+          gtfsTimeToSeconds(row.arrivalTime) +
+          (arrivalDelay ?? 0) -
+          (gtfsTimeToSeconds(row.departureTime) + (departureDelay ?? 0)),
         // ponytail: Haversine between the matched stops, not the actual rail/
         // road alignment of the line — GTFS doesn't carry a per-segment
         // distance and OpenRouteService has no "follow this transit line"
@@ -136,6 +170,10 @@ export class BusTramMobilityProvider implements MobilityProvider {
         to,
         routeShortName: row.routeShortName,
         tripHeadsign: row.tripHeadsign,
+        routeId: row.routeId,
+        realtime,
+        // The delay a rider actually experiences: how much later they board.
+        delaySeconds: departureDelay ?? 0,
       };
     });
   }

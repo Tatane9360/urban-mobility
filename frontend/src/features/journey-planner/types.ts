@@ -53,6 +53,15 @@ export interface JourneySegment {
   // Bus/Tram only — GTFS line and direction.
   routeShortName?: string | null;
   tripHeadsign?: string | null;
+  // Bus/Tram only — GTFS route_id, the key ServiceAlerts are matched on.
+  routeId?: string | null;
+  // Bus/Tram only — GTFS-RT TripUpdate applied to this segment. realtime is
+  // false when the trip wasn't in the feed (or the feed was stale), in which
+  // case delaySeconds is 0 and the times shown are theoretical.
+  realtime?: boolean;
+  delaySeconds?: number;
+  // Bus/Tram only — active disruptions on this segment's route.
+  alerts?: ServiceAlert[];
   // Marche/Vélo only — turn-by-turn, absent when ORS was unreachable.
   steps?: JourneyStep[];
   // Marche/Vélo only — the real road/path polyline, in travel order. Absent
@@ -67,6 +76,17 @@ export interface CarComparison {
   carCarbonGrams: number;
   savedCarbonGrams: number;
   savedPercent: number;
+}
+
+// Mirrors backend/src/integration/gtfs-rt.types.ts
+export interface ServiceAlert {
+  id: string;
+  routeIds: string[];
+  header: string;
+  description: string;
+  // ISO strings over the wire; null means "no bound" per GTFS-RT.
+  activeFrom: string | null;
+  activeUntil: string | null;
 }
 
 // Mirrors backend/src/routing/journey.ts

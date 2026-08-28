@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import { ArrowsOutSimple, ArrowsInSimple } from '@phosphor-icons/react/dist/ssr';
+import { AlertsBanner } from './AlertsBanner';
 import { JourneySearchForm } from './JourneySearchForm';
 import { JourneyResultsList } from './JourneyResultsList';
 import { ModePicker } from './ModePicker';
@@ -95,6 +96,7 @@ export function JourneyPlannerScreen() {
       <div
         className={`flex w-full flex-col gap-4 lg:w-[420px] lg:shrink-0 ${mapExpanded || navigatingJourney ? 'hidden lg:flex' : ''}`}
       >
+        <AlertsBanner />
         <JourneySearchForm sort={sort} onSortChange={setSort} loading={loading} onSearch={handleSearch} />
         {hasSearched && !loading && (
           <ModePicker journeys={journeys} selectedIndex={selectedIndex} onSelect={setSelectedIndex} />

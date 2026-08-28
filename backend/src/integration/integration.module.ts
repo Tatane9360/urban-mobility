@@ -12,6 +12,7 @@ import { GbfsService } from './gbfs.service';
 import { GtfsRtService } from './gtfs-rt.service';
 import { GeocodingService } from './geocoding.service';
 import { GeocodingController } from './geocoding.controller';
+import { AlertsController } from './alerts.controller';
 import { OpenRouteService } from './openrouteservice.service';
 
 @Module({
@@ -26,7 +27,7 @@ import { OpenRouteService } from './openrouteservice.service';
       GtfsStopTime,
     ]),
   ],
-  controllers: [GeocodingController],
+  controllers: [GeocodingController, AlertsController],
   providers: [
     GtfsImportService,
     GbfsService,

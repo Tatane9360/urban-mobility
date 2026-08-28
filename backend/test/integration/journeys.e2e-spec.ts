@@ -9,6 +9,12 @@ import { App } from 'supertest/types';
 import { AppModule } from '../../src/app.module';
 import { GtfsAgency } from '../../src/integration/entities/gtfs-agency.entity';
 import { GtfsImportService } from '../../src/integration/gtfs-import.service';
+import { GtfsRtService } from '../../src/integration/gtfs-rt.service';
+import {
+  GtfsRtSnapshot,
+  ServiceAlert,
+  tripStopKey,
+} from '../../src/integration/gtfs-rt.types';
 import { TransportMode } from '../../src/common/transport-mode.enum';
 
 describe('Journeys (e2e)', () => {
@@ -16,6 +22,9 @@ describe('Journeys (e2e)', () => {
   let moduleFixture: TestingModule;
   let importService: GtfsImportService;
   let agencyRepository: Repository<GtfsAgency>;
+  // Stands in for the polled GTFS-RT snapshot — no test reaches
+  // data.montpellier3m.fr.
+  let snapshot: GtfsRtSnapshot | null = null;
 
   const completeZip = readFileSync(
     join(__dirname, '../fixtures/gtfs-fixture-complete.zip'),
@@ -31,7 +40,26 @@ describe('Journeys (e2e)', () => {
   beforeAll(async () => {
     moduleFixture = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideProvider(GtfsRtService)
+      .useValue({
+        onModuleInit: () => Promise.resolve(),
+        refresh: () => Promise.resolve(),
+        getSnapshot: () => snapshot,
+        isFresh: (now: Date = new Date()) =>
+          snapshot !== null &&
+          now.getTime() - snapshot.fetchedAt.getTime() <= 45_000,
+        getActiveAlerts: (now: Date = new Date()) =>
+          snapshot === null ||
+          now.getTime() - snapshot.fetchedAt.getTime() > 45_000
+            ? []
+            : snapshot.alerts.filter(
+                (a) =>
+                  (a.activeFrom === null || a.activeFrom <= now) &&
+                  (a.activeUntil === null || a.activeUntil >= now),
+              ),
+      })
+      .compile();
 
     app = moduleFixture.createNestApplication();
     app.useGlobalPipes(
@@ -44,6 +72,7 @@ describe('Journeys (e2e)', () => {
   });
 
   beforeEach(async () => {
+    snapshot = null;
     await importService.importFromZip(completeZip);
   });
 
@@ -109,6 +138,120 @@ describe('Journeys (e2e)', () => {
     expect(carbonValues).toEqual([...carbonValues].sort((a, b) => a - b));
   });
 
+  it('applies a GTFS-RT delay to the Tram segment and reports the journey as not degraded', async () => {
+    // Departure at 08:00 delayed 180s, arrival at 08:30 delayed 420s: the
+    // rider boards 3 min late and the ride itself is 4 min longer.
+    snapshot = {
+      vehicles: [],
+      delays: new Map([
+        [
+          tripStopKey('TRIP_L1_1', 'STOP_MOSSON'),
+          { tripId: 'TRIP_L1_1', stopId: 'STOP_MOSSON', delaySeconds: 180 },
+        ],
+        [
+          tripStopKey('TRIP_L1_1', 'STOP_ODYSSEUM'),
+          { tripId: 'TRIP_L1_1', stopId: 'STOP_ODYSSEUM', delaySeconds: 420 },
+        ],
+      ]),
+      alerts: [],
+      fetchedAt: new Date(),
+    };
+
+    const response = await request(app.getHttpServer())
+      .post('/journeys')
+      .send({
+        origin: { coordinates: nearMosson },
+        destination: { coordinates: nearOdysseum },
+        departureTime: '2026-07-10T07:00:00',
+      });
+
+    expect(response.status).toBe(201);
+    const journeys = response.body as Array<{
+      degraded: boolean;
+      segments: Array<{
+        mode: TransportMode;
+        durationSeconds: number;
+        delaySeconds?: number;
+        realtime?: boolean;
+      }>;
+    }>;
+    const transit = journeys.find((j) =>
+      j.segments.some((s) => s.mode === TransportMode.Tram),
+    )!;
+    expect(transit.degraded).toBe(false);
+    const tram = transit.segments.find((s) => s.mode === TransportMode.Tram)!;
+    expect(tram).toMatchObject({
+      realtime: true,
+      delaySeconds: 180,
+      durationSeconds: 30 * 60 + (420 - 180),
+    });
+  });
+
+  it('reports degraded:true and the theoretical schedule when no GTFS-RT snapshot exists', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/journeys')
+      .send({
+        origin: { coordinates: nearMosson },
+        destination: { coordinates: nearOdysseum },
+        departureTime: '2026-07-10T07:00:00',
+      });
+
+    expect(response.status).toBe(201);
+    const journeys = response.body as Array<{
+      degraded: boolean;
+      segments: Array<{
+        mode: TransportMode;
+        durationSeconds: number;
+        realtime?: boolean;
+      }>;
+    }>;
+    expect(journeys.every((j) => j.degraded)).toBe(true);
+    const tram = journeys
+      .flatMap((j) => j.segments)
+      .find((s) => s.mode === TransportMode.Tram)!;
+    expect(tram.realtime).toBe(false);
+    expect(tram.durationSeconds).toBe(30 * 60);
+  });
+
+  it('attaches an active ServiceAlert to the Tram segment on the affected route', async () => {
+    const alert: ServiceAlert = {
+      id: 'ALERT_L1',
+      routeIds: ['L1'],
+      header: 'Ligne 1 perturbée',
+      description: 'Travaux entre Mosson et Odysseum',
+      activeFrom: null,
+      activeUntil: null,
+    };
+    snapshot = {
+      vehicles: [],
+      delays: new Map(),
+      alerts: [alert],
+      fetchedAt: new Date(),
+    };
+
+    const response = await request(app.getHttpServer())
+      .post('/journeys')
+      .send({
+        origin: { coordinates: nearMosson },
+        destination: { coordinates: nearOdysseum },
+        departureTime: '2026-07-10T07:00:00',
+      });
+
+    expect(response.status).toBe(201);
+    const journeys = response.body as Array<{
+      segments: Array<{
+        mode: TransportMode;
+        alerts?: Array<{ header: string }>;
+      }>;
+    }>;
+    const tram = journeys
+      .flatMap((j) => j.segments)
+      .find((s) => s.mode === TransportMode.Tram)!;
+    expect(tram.alerts).toEqual([
+      { ...alert, activeFrom: null, activeUntil: null },
+    ]);
+  });
+
   it('rejects an invalid sort value', async () => {
     const response = await request(app.getHttpServer())
       .post('/journeys')
@@ -137,6 +280,48 @@ describe('Journeys (e2e)', () => {
     expect(journeys[0].segments.map((s) => s.mode)).toEqual([
       TransportMode.Marche,
     ]);
+  });
+
+  it('GET /alerts returns the currently active alerts, without a token', async () => {
+    const now = new Date();
+    snapshot = {
+      vehicles: [],
+      delays: new Map(),
+      alerts: [
+        {
+          id: 'CURRENT',
+          routeIds: ['L1'],
+          header: 'Ligne 1 perturbée',
+          description: 'Travaux',
+          activeFrom: new Date(now.getTime() - 60_000),
+          activeUntil: new Date(now.getTime() + 60_000),
+        },
+        {
+          id: 'EXPIRED',
+          routeIds: ['L2'],
+          header: 'Terminée',
+          description: '',
+          activeFrom: new Date(now.getTime() - 7_200_000),
+          activeUntil: new Date(now.getTime() - 3_600_000),
+        },
+      ],
+      fetchedAt: now,
+    };
+
+    // No Authorization header: a guest must be able to see disruptions.
+    const response = await request(app.getHttpServer()).get('/alerts');
+
+    expect(response.status).toBe(200);
+    const alerts = response.body as Array<{ id: string; header: string }>;
+    expect(alerts.map((a) => a.id)).toEqual(['CURRENT']);
+    expect(alerts[0].header).toBe('Ligne 1 perturbée');
+  });
+
+  it('GET /alerts returns an empty list when GTFS-RT has no snapshot', async () => {
+    const response = await request(app.getHttpServer()).get('/alerts');
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual([]);
   });
 
   it('rejects a journey point with neither coordinates nor address', async () => {

@@ -1,9 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { Bicycle, PersonSimpleWalk, Train, Bus, CaretDown } from '@phosphor-icons/react/dist/ssr';
+import { Bicycle, PersonSimpleWalk, Train, Bus, CaretDown, Warning } from '@phosphor-icons/react/dist/ssr';
 import { Leaf } from '@phosphor-icons/react/dist/ssr';
-import { TransportMode, type JourneyStep } from '../types';
+import { TransportMode, type JourneyStep, type ServiceAlert } from '../types';
 import { JourneySteps } from './JourneySteps';
 
 const MODE_ICON: Record<TransportMode, typeof Train> = {
@@ -20,6 +20,12 @@ function formatDuration(seconds: number): string {
 
 function formatClock(iso: string): string {
   return new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+}
+
+// The theoretical clock time behind a real-time one: subtract the delay the
+// backend already folded into startTime, so the rider sees both.
+function shiftClock(iso: string, seconds: number): string {
+  return formatClock(new Date(new Date(iso).getTime() - seconds * 1000).toISOString());
 }
 
 function formatDistance(meters: number): string {
@@ -42,6 +48,9 @@ interface SegmentBadgeProps {
     endTime?: string;
     routeShortName?: string | null;
     tripHeadsign?: string | null;
+    realtime?: boolean;
+    delaySeconds?: number;
+    alerts?: ServiceAlert[];
     steps?: JourneyStep[];
   };
 }
@@ -51,7 +60,10 @@ export function SegmentBadge({ segment }: SegmentBadgeProps) {
   const Icon = MODE_ICON[segment.mode];
   const isMotorized = segment.mode === TransportMode.Tram || segment.mode === TransportMode.Bus;
   const hasSteps = Boolean(segment.steps && segment.steps.length > 0);
-  const hasDetail = Boolean(segment.from.name || segment.to.name || hasSteps);
+  const delaySeconds = segment.delaySeconds ?? 0;
+  const isLate = Boolean(segment.realtime) && delaySeconds > 0;
+  const alerts = segment.alerts ?? [];
+  const hasDetail = Boolean(segment.from.name || segment.to.name || hasSteps || alerts.length > 0);
 
   return (
     <div
@@ -83,6 +95,19 @@ export function SegmentBadge({ segment }: SegmentBadgeProps) {
               </span>
             </>
           )}
+          {isLate && (
+            <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold text-amber-800 dark:bg-amber-950/60 dark:text-amber-400">
+              +{Math.round(delaySeconds / 60)} min
+            </span>
+          )}
+          {alerts.length > 0 && (
+            <Warning
+              size={13}
+              weight="fill"
+              aria-label={`${alerts.length} perturbation${alerts.length > 1 ? 's' : ''} sur cette ligne`}
+              className="shrink-0 text-amber-600 dark:text-amber-400"
+            />
+          )}
           {hasDetail && (
             <CaretDown
               size={12}
@@ -93,6 +118,12 @@ export function SegmentBadge({ segment }: SegmentBadgeProps) {
         {isMotorized && segment.tripHeadsign && (
           <span className="text-[11px] font-normal text-zinc-500 dark:text-zinc-400">
             Direction {segment.tripHeadsign}
+          </span>
+        )}
+        {isLate && segment.startTime && (
+          <span className="text-[11px] font-normal text-amber-700 dark:text-amber-400">
+            Départ temps réel {formatClock(segment.startTime)} (théorique{' '}
+            {shiftClock(segment.startTime, delaySeconds)})
           </span>
         )}
       </button>
@@ -111,6 +142,18 @@ export function SegmentBadge({ segment }: SegmentBadgeProps) {
             <Leaf size={12} />
             <span>{formatGrams(segment.carbonGrams)} CO₂e</span>
           </div>
+          {alerts.map((alert) => (
+            <div
+              key={alert.id}
+              className="mt-1 flex items-start gap-1.5 rounded-md bg-amber-50 px-2 py-1.5 text-amber-800 dark:bg-amber-950/40 dark:text-amber-400"
+            >
+              <Warning size={13} weight="fill" className="mt-0.5 shrink-0" />
+              <div className="flex flex-col gap-0.5">
+                <span className="font-medium">{alert.header}</span>
+                {alert.description && <span>{alert.description}</span>}
+              </div>
+            </div>
+          ))}
           {hasSteps && (
             <div className="mt-1 border-t border-current/10 pt-1.5">
               <JourneySteps steps={segment.steps!} />

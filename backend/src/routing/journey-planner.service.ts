@@ -2,6 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { CarbonService } from '../carbon/carbon.service';
 import { GeocodingService } from '../integration/geocoding.service';
 import { GtfsRtService } from '../integration/gtfs-rt.service';
+import { ServiceAlert } from '../integration/gtfs-rt.types';
 import { BikeMobilityProvider } from './bike.mobility-provider';
 import { BusTramMobilityProvider } from './bus-tram.mobility-provider';
 import { GeoPoint } from './geo-point';
@@ -33,7 +34,13 @@ export class JourneyPlannerService {
       this.resolvePoint(dto.destination),
     ]);
 
-    const degraded = this.gtfsRtService.getSnapshot() === null;
+    // degraded = the planner could not use real time. Absent snapshot OR one
+    // too old to be trusted (PRD KPI 3: <=30s freshness) — a 10-minute-old
+    // snapshot served as live is the bug this replaces. Both take the wall
+    // clock, not departureTime: how stale the feed is has nothing to do with
+    // which day the user asked about.
+    const degraded = !this.gtfsRtService.isFresh();
+    const alerts = this.gtfsRtService.getActiveAlerts();
 
     // A direct Marche candidate is computed alongside Bus/Tram and Vélo,
     // always — not just as a last-resort fallback — so the UI can offer a
@@ -47,7 +54,10 @@ export class JourneyPlannerService {
     ]);
 
     const journeys: Journey[] = [];
-    for (const segments of [transitSegments, bikeSegments]) {
+    for (const segments of [
+      withAlerts(transitSegments, alerts),
+      bikeSegments,
+    ]) {
       if (segments.length === 0) continue;
       const bridged = await this.withBridgingWalks(
         origin,
@@ -146,6 +156,24 @@ export class JourneyPlannerService {
       degraded,
     };
   }
+}
+
+// A segment carries the alerts that name its own GTFS route_id. Segments
+// with no routeId (Marche/Vélo) never match.
+// ponytail: routeId matching only — GTFS-RT informedEntity can also select by
+// stop or trip, and those selectors are dropped at decode time (see
+// gtfs-rt.types.ts). Widen both together if TaM starts publishing them.
+function withAlerts(
+  segments: RawJourneySegment[],
+  alerts: ServiceAlert[],
+): RawJourneySegment[] {
+  if (alerts.length === 0) return segments;
+  return segments.map((segment) => {
+    const matching = segment.routeId
+      ? alerts.filter((a) => a.routeIds.includes(segment.routeId!))
+      : [];
+    return matching.length > 0 ? { ...segment, alerts: matching } : segment;
+  });
 }
 
 function sortJourneys(

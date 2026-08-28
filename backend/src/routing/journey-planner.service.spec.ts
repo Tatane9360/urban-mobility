@@ -3,7 +3,7 @@ import { CarbonService } from '../carbon/carbon.service';
 import { TransportMode } from '../common/transport-mode.enum';
 import { GeocodingService } from '../integration/geocoding.service';
 import { GtfsRtService } from '../integration/gtfs-rt.service';
-import { GtfsRtSnapshot } from '../integration/gtfs-rt.types';
+import { GtfsRtSnapshot, ServiceAlert } from '../integration/gtfs-rt.types';
 import { BikeMobilityProvider } from './bike.mobility-provider';
 import { BusTramMobilityProvider } from './bus-tram.mobility-provider';
 import { PlanJourneyDto } from './dto/plan-journey.dto';
@@ -34,8 +34,35 @@ function mockGeocoding(
   } as unknown as GeocodingService;
 }
 
+function freshSnapshot(
+  overrides: Partial<GtfsRtSnapshot> = {},
+): GtfsRtSnapshot {
+  return {
+    vehicles: [],
+    delays: new Map(),
+    alerts: [],
+    fetchedAt: new Date(),
+    ...overrides,
+  };
+}
+
+// Mirrors the real service: fresh iff a snapshot exists and is within the
+// staleness window. Tests that want "stale" hand in an old fetchedAt.
 function mockGtfsRt(snapshot: GtfsRtSnapshot | null): GtfsRtService {
-  return { getSnapshot: () => snapshot } as unknown as GtfsRtService;
+  const isFresh = (now: Date = new Date()) =>
+    snapshot !== null && now.getTime() - snapshot.fetchedAt.getTime() <= 45_000;
+  return {
+    getSnapshot: () => snapshot,
+    isFresh,
+    getActiveAlerts: (now: Date = new Date()) =>
+      isFresh(now)
+        ? (snapshot?.alerts ?? []).filter(
+            (a) =>
+              (a.activeFrom === null || a.activeFrom <= now) &&
+              (a.activeUntil === null || a.activeUntil >= now),
+          )
+        : [],
+  } as unknown as GtfsRtService;
 }
 
 function mockWalkProvider(): WalkMobilityProvider {
@@ -78,7 +105,7 @@ describe('JourneyPlannerService', () => {
     const walkProvider = mockWalkProvider();
     const service = new JourneyPlannerService(
       mockGeocoding([]),
-      mockGtfsRt({ vehicles: [], fetchedAt: new Date() }),
+      mockGtfsRt(freshSnapshot()),
       carbonService,
       busTramProvider,
       bikeProvider,
@@ -140,6 +167,124 @@ describe('JourneyPlannerService', () => {
     expect(journeys[0].degraded).toBe(true);
   });
 
+  it('marks the Journey as degraded when the GTFS-RT snapshot is stale', async () => {
+    // A snapshot exists — the old `getSnapshot() === null` check would call
+    // this fresh — but it was fetched 10 minutes ago. Serving it as real-time
+    // is exactly the KPI-3 breach this guards.
+    const busTramProvider = {
+      getSegments: jest.fn().mockResolvedValue([busTramSegment()]),
+    } as unknown as BusTramMobilityProvider;
+    // fetchedAt is 10 minutes before the real wall clock — freshness is
+    // measured against Date.now(), not the itinerary's departureTime.
+    const now = new Date('2026-07-10T08:00:00Z');
+    const service = new JourneyPlannerService(
+      mockGeocoding([]),
+      mockGtfsRt(freshSnapshot({ fetchedAt: new Date(Date.now() - 600_000) })),
+      carbonService,
+      busTramProvider,
+      {
+        getSegments: jest.fn().mockResolvedValue([]),
+      } as unknown as BikeMobilityProvider,
+      mockWalkProvider(),
+    );
+
+    const journeys = await service.plan(
+      planDto({ coordinates: origin }, { coordinates: destination }),
+      now,
+    );
+
+    expect(journeys.every((j) => j.degraded)).toBe(true);
+  });
+
+  it('attaches active ServiceAlerts to the transit segment whose routeId they name', async () => {
+    // Alert activity is judged against the wall clock, like freshness.
+    const now = new Date('2026-07-10T08:00:00Z');
+    const alert: ServiceAlert = {
+      id: 'ALERT_1',
+      routeIds: ['L1'],
+      header: 'Travaux ligne 1',
+      description: 'Interruption entre Corum et Odysseum',
+      activeFrom: new Date(Date.now() - 60_000),
+      activeUntil: new Date(Date.now() + 60_000),
+    };
+    const busTramProvider = {
+      getSegments: jest
+        .fn()
+        .mockResolvedValue([{ ...busTramSegment(), routeId: 'L1' }]),
+    } as unknown as BusTramMobilityProvider;
+    const service = new JourneyPlannerService(
+      mockGeocoding([]),
+      mockGtfsRt(freshSnapshot({ alerts: [alert] })),
+      carbonService,
+      busTramProvider,
+      {
+        getSegments: jest.fn().mockResolvedValue([]),
+      } as unknown as BikeMobilityProvider,
+      mockWalkProvider(),
+    );
+
+    const journeys = await service.plan(
+      planDto({ coordinates: origin }, { coordinates: destination }),
+      now,
+    );
+
+    const transitJourney = journeys.find((j) =>
+      j.segments.some((s) => s.mode === TransportMode.Tram),
+    )!;
+    const tram = transitJourney.segments.find(
+      (s) => s.mode === TransportMode.Tram,
+    )!;
+    expect(tram.alerts).toEqual([alert]);
+    // The bridging Marche segments have no routeId, so nothing attaches.
+    expect(
+      transitJourney.segments
+        .filter((s) => s.mode === TransportMode.Marche)
+        .every((s) => s.alerts === undefined),
+    ).toBe(true);
+  });
+
+  it('does not attach an alert naming a different routeId', async () => {
+    const now = new Date('2026-07-10T08:00:00Z');
+    const busTramProvider = {
+      getSegments: jest
+        .fn()
+        .mockResolvedValue([{ ...busTramSegment(), routeId: 'L1' }]),
+    } as unknown as BusTramMobilityProvider;
+    const service = new JourneyPlannerService(
+      mockGeocoding([]),
+      mockGtfsRt(
+        freshSnapshot({
+          alerts: [
+            {
+              id: 'ALERT_2',
+              routeIds: ['L4'],
+              header: 'Ligne 4 perturbée',
+              description: '',
+              activeFrom: null,
+              activeUntil: null,
+            },
+          ],
+        }),
+      ),
+      carbonService,
+      busTramProvider,
+      {
+        getSegments: jest.fn().mockResolvedValue([]),
+      } as unknown as BikeMobilityProvider,
+      mockWalkProvider(),
+    );
+
+    const journeys = await service.plan(
+      planDto({ coordinates: origin }, { coordinates: destination }),
+      now,
+    );
+
+    const tram = journeys
+      .flatMap((j) => j.segments)
+      .find((s) => s.mode === TransportMode.Tram)!;
+    expect(tram.alerts).toBeUndefined();
+  });
+
   it('returns only the direct Marche journey when no transit/bike candidate is found', async () => {
     const busTramProvider = {
       getSegments: jest.fn().mockResolvedValue([]),
@@ -150,7 +295,7 @@ describe('JourneyPlannerService', () => {
     const walkProvider = mockWalkProvider();
     const service = new JourneyPlannerService(
       mockGeocoding([]),
-      mockGtfsRt({ vehicles: [], fetchedAt: new Date() }),
+      mockGtfsRt(freshSnapshot()),
       carbonService,
       busTramProvider,
       bikeProvider,
@@ -182,7 +327,7 @@ describe('JourneyPlannerService', () => {
     const geocoding = { geocode } as unknown as GeocodingService;
     const service = new JourneyPlannerService(
       geocoding,
-      mockGtfsRt({ vehicles: [], fetchedAt: new Date() }),
+      mockGtfsRt(freshSnapshot()),
       carbonService,
       busTramProvider,
       bikeProvider,
@@ -289,7 +434,7 @@ describe('JourneyPlannerService', () => {
     } as unknown as WalkMobilityProvider;
     const service = new JourneyPlannerService(
       mockGeocoding([]),
-      mockGtfsRt({ vehicles: [], fetchedAt: new Date() }),
+      mockGtfsRt(freshSnapshot()),
       carbonService,
       busTramProvider,
       bikeProvider,

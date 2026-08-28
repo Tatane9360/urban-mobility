@@ -1,4 +1,5 @@
 import { TransportMode } from '../common/transport-mode.enum';
+import { ServiceAlert } from '../integration/gtfs-rt.types';
 import { OrsStep } from '../integration/openrouteservice.types';
 import { GeoPoint } from './geo-point';
 
@@ -29,6 +30,19 @@ export interface RawJourneySegment {
   // gtfs_route/gtfs_trip. Absent for Marche/Vélo, which have neither.
   routeShortName?: string | null;
   tripHeadsign?: string | null;
+  // Bus/Tram only — the GTFS route_id, used to match ServiceAlerts against
+  // the segment. routeShortName is the human label ("1", "L2"), routeId is
+  // the identifier GTFS-RT's informedEntity actually carries.
+  routeId?: string | null;
+  // Bus/Tram only — GTFS-RT TripUpdate applied to the matched stop_time.
+  // `realtime` is true when a delay was actually found for this trip+stop in
+  // a fresh snapshot; false means the segment is pure static schedule and
+  // delaySeconds is 0.
+  realtime?: boolean;
+  delaySeconds?: number;
+  // Bus/Tram only — active ServiceAlerts touching this segment's routeId,
+  // attached by the planner (the provider itself doesn't read alerts).
+  alerts?: ServiceAlert[];
   // Marche/Vélo only — turn-by-turn from OpenRouteService, in the order
   // walked/ridden. Absent for Bus/Tram (a transit line has no such steps —
   // the rider follows the vehicle, not directions) and absent whenever ORS
