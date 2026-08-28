@@ -65,3 +65,8 @@ pids
 
 # Diagnostic reports
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+.neon
+
+# Local env backups
+*.env.*.bak
+.env.*.bak
