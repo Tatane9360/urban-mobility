@@ -12,6 +12,23 @@ import { MobilityProvider } from './mobility-provider';
 // used by the integration e2e test's spatial query.
 const NEARBY_STOP_RADIUS_METERS = 500;
 
+// gtfs_calendar day columns indexed by Date.getDay() (0 = Sunday), so a trip
+// is only proposed on a day its GTFS service actually runs.
+// ponytail: calendar.txt only — calendar_dates.txt (the GTFS exception file
+// for public holidays and one-off service changes) is not imported at all, so
+// a holiday still resolves to its ordinary weekday service. Upgrade path:
+// import calendar_dates and add a NOT EXISTS (exception_type = 2) /
+// EXISTS (exception_type = 1) pair against this same date.
+const CALENDAR_DAY_COLUMNS = [
+  'sunday',
+  'monday',
+  'tuesday',
+  'wednesday',
+  'thursday',
+  'friday',
+  'saturday',
+] as const;
+
 interface CandidateRow {
   routeType: number;
   routeShortName: string | null;
@@ -40,6 +57,13 @@ export class BusTramMobilityProvider implements MobilityProvider {
     departureTime: Date,
   ): Promise<RawJourneySegment[]> {
     const departureTimeOfDay = toGtfsTimeOfDay(departureTime);
+    // ponytail: the only value interpolated into the SQL string rather than
+    // passed positionally — Postgres can't parameterise a column name. It is
+    // read out of the frozen CALENDAR_DAY_COLUMNS array by a 0-6 index that
+    // Date.getDay() is guaranteed to produce, so no caller input ever reaches
+    // the SQL text.
+    const dayColumn = CALENDAR_DAY_COLUMNS[departureTime.getDay()];
+    const departureDate = toIsoDate(departureTime);
 
     const rows: CandidateRow[] = await this.dataSource.query(
       `
@@ -62,7 +86,10 @@ export class BusTramMobilityProvider implements MobilityProvider {
       JOIN gtfs_stop stop_to ON stop_to.id = st_to."stopDbId"
       JOIN gtfs_trip t ON t.id = st_from."tripDbId"
       JOIN gtfs_route r ON r.id = t."routeDbId"
-      WHERE ST_DWithin(
+      JOIN gtfs_calendar c ON c.id = t."calendarDbId"
+      WHERE c."${dayColumn}" = true
+        AND $7::date BETWEEN c."startDate" AND c."endDate"
+        AND ST_DWithin(
               stop_from.location::geography,
               ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography,
               $5
@@ -83,6 +110,7 @@ export class BusTramMobilityProvider implements MobilityProvider {
         to.lat,
         NEARBY_STOP_RADIUS_METERS,
         departureTimeOfDay,
+        departureDate,
       ],
     );
 
@@ -123,6 +151,16 @@ function toGtfsTimeOfDay(date: Date): string {
   const minutes = String(date.getMinutes()).padStart(2, '0');
   const seconds = String(date.getSeconds()).padStart(2, '0');
   return `${hours}:${minutes}:${seconds}`;
+}
+
+// Local-time getters, deliberately matching toGtfsTimeOfDay above: the date
+// and the time-of-day must be read off the same clock, or a late-evening
+// search could filter on tomorrow's calendar while comparing today's times.
+function toIsoDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 function gtfsTimeToSeconds(time: string): number {
