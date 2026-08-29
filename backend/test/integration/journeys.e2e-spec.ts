@@ -16,6 +16,8 @@ import {
   tripStopKey,
 } from '../../src/integration/gtfs-rt.types';
 import { TransportMode } from '../../src/common/transport-mode.enum';
+import { OpenRouteService } from '../../src/integration/openrouteservice.service';
+import { openRouteServiceStub } from '../stubs/openrouteservice.stub';
 
 describe('Journeys (e2e)', () => {
   let app: INestApplication<App>;
@@ -41,6 +43,11 @@ describe('Journeys (e2e)', () => {
     moduleFixture = await Test.createTestingModule({
       imports: [AppModule],
     })
+      // OpenRouteService is a live API on a daily quota, called several times
+      // per search — a full run used to burn hundreds of requests and exhaust
+      // the free plan for the day, degrading the real app to straight lines.
+      .overrideProvider(OpenRouteService)
+      .useValue(openRouteServiceStub())
       .overrideProvider(GtfsRtService)
       .useValue({
         onModuleInit: () => Promise.resolve(),
@@ -457,6 +464,37 @@ describe('Journeys (e2e)', () => {
       response.body as Array<{ segments: Array<{ mode: string }> }>
     ).flatMap((j) => j.segments.map((s) => s.mode));
     expect(modes).toContain(TransportMode.Tram);
+  });
+
+  it('carries the route geometry and steps on walking segments', async () => {
+    // The map draws segment.geometry; without it the frontend can only join
+    // from/to and the walk renders as a straight line through buildings. That
+    // is the honest degraded mode when OpenRouteService is unreachable, but it
+    // must not be the normal case — no test asserted this, which is why a
+    // quota-exhausted key went unnoticed until someone looked at the map.
+    const response = await request(app.getHttpServer())
+      .post('/journeys')
+      .send({
+        origin: { coordinates: nearMosson },
+        destination: { coordinates: nearOdysseum },
+        departureTime: '2026-07-10T07:00:00',
+      });
+
+    expect(response.status).toBe(201);
+    const journeys = response.body as Array<{
+      segments: Array<{
+        mode: TransportMode;
+        geometry?: Array<{ lat: number; lon: number }>;
+        steps?: unknown[];
+      }>;
+    }>;
+    const walk = journeys
+      .flatMap((j) => j.segments)
+      .find((s) => s.mode === TransportMode.Marche);
+
+    expect(walk).toBeDefined();
+    expect(walk!.geometry?.length).toBeGreaterThanOrEqual(2);
+    expect(walk!.steps?.length).toBeGreaterThanOrEqual(1);
   });
 
   it('rejects an invalid sort value', async () => {
