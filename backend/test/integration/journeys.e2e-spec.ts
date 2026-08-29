@@ -280,7 +280,7 @@ describe('Journeys (e2e)', () => {
 
     expect(response.status).toBe(201);
     const journeys = response.body as Array<{
-      segments: Array<{ mode: string }>;
+      segments: Array<{ mode: TransportMode }>;
     }>;
     const transitJourneys = journeys.filter((j) =>
       j.segments.some((s) => s.mode === TransportMode.Tram),

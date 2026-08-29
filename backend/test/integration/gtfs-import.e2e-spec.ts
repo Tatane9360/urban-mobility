@@ -73,7 +73,14 @@ describe('GtfsImportService (e2e)', () => {
       ],
       order: { stopSequence: 'ASC' },
     });
-    const firstLeg = stopTimes.find((st) => st.stop.stopId === 'STOP_MOSSON');
+    // Two trips now call at Mosson (TRIP_L1_1 08:00 and TRIP_L1_2 08:30), so
+    // the trip is named explicitly: matching on the stop alone would depend on
+    // the row order Postgres happens to return.
+    const firstLeg = stopTimes.find(
+      (st) =>
+        st.stop.stopId === 'STOP_MOSSON' && st.trip.tripId === 'TRIP_L1_1',
+    );
+    expect(firstLeg).toBeDefined();
     expect(firstLeg?.trip.tripId).toBe('TRIP_L1_1');
     expect(firstLeg?.trip.route.routeId).toBe('L1');
     expect(firstLeg?.trip.route.agency.agencyId).toBe('TAM');
