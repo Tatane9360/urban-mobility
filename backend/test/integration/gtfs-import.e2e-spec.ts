@@ -60,8 +60,8 @@ describe('GtfsImportService (e2e)', () => {
     expect(await routeRepository.count()).toBe(2);
     expect(await calendarRepository.count()).toBe(2);
     expect(await stopRepository.count()).toBe(3);
-    expect(await tripRepository.count()).toBe(2);
-    expect(await stopTimeRepository.count()).toBe(5);
+    expect(await tripRepository.count()).toBe(3);
+    expect(await stopTimeRepository.count()).toBe(8);
 
     const stopTimes = await stopTimeRepository.find({
       relations: [
@@ -98,8 +98,8 @@ describe('GtfsImportService (e2e)', () => {
     expect(await routeRepository.count()).toBe(2);
     expect(await calendarRepository.count()).toBe(2);
     expect(await stopRepository.count()).toBe(3);
-    expect(await tripRepository.count()).toBe(2);
-    expect(await stopTimeRepository.count()).toBe(5);
+    expect(await tripRepository.count()).toBe(3);
+    expect(await stopTimeRepository.count()).toBe(8);
   });
 
   it('fails explicitly and leaves no partial data when a file references an unknown id', async () => {

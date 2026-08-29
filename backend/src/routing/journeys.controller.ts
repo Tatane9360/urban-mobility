@@ -1,5 +1,12 @@
-import { Body, Controller, Post } from '@nestjs/common';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Post, Req, UseGuards } from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+import { OptionalJwtAuthGuard } from '../auth/optional-jwt.guard';
+import type { OptionallyAuthenticatedRequest } from '../auth/optional-jwt.guard';
 import { Journey } from './journey';
 import { JourneyPlannerService } from './journey-planner.service';
 import { PlanJourneyDto } from './dto/plan-journey.dto';
@@ -17,8 +24,19 @@ export class JourneysController {
     status: 201,
     description: 'Candidate Journeys, sorted per the requested criterion',
   })
+  // Optionally authenticated: guests keep the anonymous search F1 guarantees,
+  // while a bearer token lets the profile's preferred modes apply by default.
+  @ApiBearerAuth()
+  @UseGuards(OptionalJwtAuthGuard)
   @Post()
-  plan(@Body() dto: PlanJourneyDto): Promise<Journey[]> {
-    return this.plannerService.plan(dto, dto.departureTime ?? new Date());
+  plan(
+    @Body() dto: PlanJourneyDto,
+    @Req() request: OptionallyAuthenticatedRequest,
+  ): Promise<Journey[]> {
+    return this.plannerService.plan(
+      dto,
+      dto.departureTime ?? new Date(),
+      request.userId,
+    );
   }
 }

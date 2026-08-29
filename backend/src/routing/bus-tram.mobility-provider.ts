@@ -14,6 +14,12 @@ import { MobilityProvider } from './mobility-provider';
 // used by the integration e2e test's spatial query.
 const NEARBY_STOP_RADIUS_METERS = 500;
 
+// How many upcoming departures to propose. ponytail: these are alternatives on
+// a single line, never a chain of two lines with a correspondence — building
+// real transfers means a graph search over the whole network, explicitly out
+// of scope here (see FONCTIONNALITES_MANQUANTES.md #9).
+const MAX_DEPARTURES = 3;
+
 // gtfs_calendar day columns indexed by Date.getDay() (0 = Sunday), so a trip
 // is only proposed on a day its GTFS service actually runs.
 // ponytail: calendar.txt only — calendar_dates.txt (the GTFS exception file
@@ -76,7 +82,9 @@ export class BusTramMobilityProvider implements MobilityProvider {
 
     const rows: CandidateRow[] = await this.dataSource.query(
       `
-      SELECT r."routeType" AS "routeType",
+      SELECT * FROM (
+      SELECT DISTINCT ON (t.id)
+             r."routeType" AS "routeType",
              r."routeId" AS "routeId",
              r."routeShortName" AS "routeShortName",
              t."tripId" AS "tripId",
@@ -113,8 +121,17 @@ export class BusTramMobilityProvider implements MobilityProvider {
               $5
             )
         AND st_from."departureTime" >= $6
-      ORDER BY st_from."departureTime" ASC
-      LIMIT 1
+      -- DISTINCT ON keeps one row per trip: without it a single trip yields
+      -- every (boarding, alighting) pair it contains, and LIMIT would return
+      -- three slices of the same departure instead of three departures. The
+      -- leading ORDER BY key must match DISTINCT ON; the rest picks which pair
+      -- survives — earliest boarding, then the furthest ride from it.
+      ORDER BY t.id,
+               st_from."departureTime" ASC,
+               st_to."arrivalTime" DESC
+      ) candidates
+      ORDER BY candidates."departureTime" ASC
+      LIMIT $8
       `,
       [
         from.lon,
@@ -124,6 +141,7 @@ export class BusTramMobilityProvider implements MobilityProvider {
         NEARBY_STOP_RADIUS_METERS,
         departureTimeOfDay,
         departureDate,
+        MAX_DEPARTURES,
       ],
     );
 

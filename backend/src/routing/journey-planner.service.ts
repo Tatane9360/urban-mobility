@@ -1,4 +1,8 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { MobilityProfile } from '../auth/entities/mobility-profile.entity';
+import { TransportMode } from '../common/transport-mode.enum';
 import { CarbonService } from '../carbon/carbon.service';
 import { GeocodingService } from '../integration/geocoding.service';
 import { GtfsRtService } from '../integration/gtfs-rt.service';
@@ -26,9 +30,15 @@ export class JourneyPlannerService {
     private readonly busTramProvider: BusTramMobilityProvider,
     private readonly bikeProvider: BikeMobilityProvider,
     private readonly walkProvider: WalkMobilityProvider,
+    @InjectRepository(MobilityProfile)
+    private readonly profileRepository: Repository<MobilityProfile>,
   ) {}
 
-  async plan(dto: PlanJourneyDto, departureTime: Date): Promise<Journey[]> {
+  async plan(
+    dto: PlanJourneyDto,
+    departureTime: Date,
+    userId?: string,
+  ): Promise<Journey[]> {
     const [origin, destination] = await Promise.all([
       this.resolvePoint(dto.origin),
       this.resolvePoint(dto.destination),
@@ -47,17 +57,36 @@ export class JourneyPlannerService {
     // real "walk only" option (with its own duration) even when a faster
     // multimodal Journey exists, per the mode-icon picker (like Google Maps'
     // per-mode duration row).
+    const modes = await this.resolveModes(dto, userId);
+    const wanted = (mode: TransportMode) => modes === null || modes.has(mode);
+    // A mode nobody asked for isn't queried at all — the filter saves the
+    // provider call, it doesn't discard its result afterwards.
     const [transitSegments, bikeSegments, walkSegments] = await Promise.all([
-      this.busTramProvider.getSegments(origin, destination, departureTime),
-      this.bikeProvider.getSegments(origin, destination, departureTime),
-      this.walkProvider.getSegments(origin, destination, departureTime),
+      wanted(TransportMode.Tram) || wanted(TransportMode.Bus)
+        ? this.busTramProvider.getSegments(origin, destination, departureTime)
+        : [],
+      wanted(TransportMode.Velo)
+        ? this.bikeProvider.getSegments(origin, destination, departureTime)
+        : [],
+      wanted(TransportMode.Marche)
+        ? this.walkProvider.getSegments(origin, destination, departureTime)
+        : [],
     ]);
 
-    const journeys: Journey[] = [];
-    for (const segments of [
-      withAlerts(transitSegments, alerts),
+    // Each transit segment is a departure in its own right (the provider
+    // returns the next few), so each becomes its own Journey alternative —
+    // unlike Vélo, whose segments form one single ride.
+    const candidates: RawJourneySegment[][] = [
+      // Tram and Bus come from the same provider, so asking for only one of
+      // them still returns both — the unwanted mode is dropped here.
+      ...withAlerts(transitSegments, alerts)
+        .filter((segment) => wanted(segment.mode))
+        .map((segment) => [segment]),
       bikeSegments,
-    ]) {
+    ];
+
+    const journeys: Journey[] = [];
+    for (const segments of candidates) {
       if (segments.length === 0) continue;
       const bridged = await this.withBridgingWalks(
         origin,
@@ -67,9 +96,36 @@ export class JourneyPlannerService {
       );
       journeys.push(this.toJourney(bridged, degraded, departureTime));
     }
-    journeys.push(this.toJourney(walkSegments, degraded, departureTime));
+    if (walkSegments.length > 0) {
+      journeys.push(this.toJourney(walkSegments, degraded, departureTime));
+    }
 
     return sortJourneys(journeys, dto.sort);
+  }
+
+  // null = no filtering. An explicit `modes` wins; otherwise an authenticated
+  // user's preferredModes applies. An empty list — the default at registration
+  // and a legitimate "no preference" — means every mode, never zero results.
+  private async resolveModes(
+    dto: PlanJourneyDto,
+    userId?: string,
+  ): Promise<Set<TransportMode> | null> {
+    if (dto.modes !== undefined) {
+      return dto.modes.length > 0 ? new Set(dto.modes) : null;
+    }
+    if (!userId) return null;
+
+    const profile = await this.profileRepository.findOne({
+      where: { user: { id: userId } },
+    });
+    const preferred = profile?.preferredModes ?? [];
+    // preferredModes is jsonb, so it can hold anything a past write put there;
+    // keeping only real TransportMode values stops a stale entry from
+    // filtering every mode out and returning nothing.
+    const known = preferred.filter((mode): mode is TransportMode =>
+      Object.values(TransportMode).includes(mode as TransportMode),
+    );
+    return known.length > 0 ? new Set(known) : null;
   }
 
   private async resolvePoint(point: {

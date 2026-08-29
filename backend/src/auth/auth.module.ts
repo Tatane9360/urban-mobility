@@ -8,6 +8,7 @@ import { SavedJourney } from '../journeys/entities/saved-journey.entity';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtAuthGuard } from './jwt.guard';
+import { OptionalJwtAuthGuard } from './optional-jwt.guard';
 
 @Module({
   imports: [
@@ -22,7 +23,7 @@ import { JwtAuthGuard } from './jwt.guard';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtAuthGuard],
-  exports: [JwtAuthGuard, JwtModule],
+  providers: [AuthService, JwtAuthGuard, OptionalJwtAuthGuard],
+  exports: [JwtAuthGuard, OptionalJwtAuthGuard, JwtModule],
 })
 export class AuthModule {}

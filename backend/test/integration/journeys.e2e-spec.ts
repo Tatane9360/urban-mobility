@@ -71,6 +71,15 @@ describe('Journeys (e2e)', () => {
     agencyRepository = moduleFixture.get(getRepositoryToken(GtfsAgency));
   });
 
+  // Used by the preferred-modes tests: the planner is optionally
+  // authenticated, so these need a real user and a real profile.
+  async function registerAndGetToken(email: string): Promise<string> {
+    const response = await request(app.getHttpServer())
+      .post('/auth/register')
+      .send({ email, password: 'correct-horse' });
+    return (response.body as { accessToken: string }).accessToken;
+  }
+
   beforeEach(async () => {
     snapshot = null;
     await importService.importFromZip(completeZip);
@@ -80,6 +89,7 @@ describe('Journeys (e2e)', () => {
     await agencyRepository.query(
       'TRUNCATE TABLE gtfs_stop_time, gtfs_trip, gtfs_stop, gtfs_calendar, gtfs_route, gtfs_agency CASCADE',
     );
+    await agencyRepository.query('TRUNCATE TABLE app_user CASCADE');
   });
 
   afterAll(async () => {
@@ -175,9 +185,13 @@ describe('Journeys (e2e)', () => {
         realtime?: boolean;
       }>;
     }>;
+    // Two Tram alternatives exist since #9 (08:00 and 08:30) and only
+    // TRIP_L1_1 is in the stubbed feed — pick the journey the delay actually
+    // applies to, not merely the first Tram one, which sorting puts elsewhere.
     const transit = journeys.find((j) =>
-      j.segments.some((s) => s.mode === TransportMode.Tram),
+      j.segments.some((s) => s.mode === TransportMode.Tram && s.realtime),
     )!;
+    expect(transit).toBeDefined();
     expect(transit.degraded).toBe(false);
     const tram = transit.segments.find((s) => s.mode === TransportMode.Tram)!;
     expect(tram).toMatchObject({
@@ -250,6 +264,157 @@ describe('Journeys (e2e)', () => {
     expect(tram.alerts).toEqual([
       { ...alert, activeFrom: null, activeUntil: null },
     ]);
+  });
+
+  it('offers several transit alternatives, one per upcoming departure', async () => {
+    // The fixture runs two WEEKDAY departures Mosson -> Odysseum (08:00 and
+    // 08:30). Before #9 the provider stopped at the first, so "the next tram"
+    // was never proposed.
+    const response = await request(app.getHttpServer())
+      .post('/journeys')
+      .send({
+        origin: { coordinates: nearMosson },
+        destination: { coordinates: nearOdysseum },
+        departureTime: '2026-07-10T07:00:00',
+      });
+
+    expect(response.status).toBe(201);
+    const journeys = response.body as Array<{
+      segments: Array<{ mode: string }>;
+    }>;
+    const transitJourneys = journeys.filter((j) =>
+      j.segments.some((s) => s.mode === TransportMode.Tram),
+    );
+    expect(transitJourneys).toHaveLength(2);
+    // Each alternative is a full door-to-door Journey, bridging walks included
+    // — not a bare stop-to-stop leg.
+    for (const journey of transitJourneys) {
+      expect(journey.segments.map((s) => s.mode)).toEqual([
+        TransportMode.Marche,
+        TransportMode.Tram,
+        TransportMode.Marche,
+      ]);
+    }
+  });
+
+  it('returns no Bus/Tram segment when modes restricts the search to Vélo', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/journeys')
+      .send({
+        origin: { coordinates: nearMosson },
+        destination: { coordinates: nearOdysseum },
+        departureTime: '2026-07-10T07:00:00',
+        modes: [TransportMode.Velo],
+      });
+
+    expect(response.status).toBe(201);
+    const journeys = response.body as Array<{
+      segments: Array<{ mode: string }>;
+    }>;
+    const modes = journeys.flatMap((j) => j.segments.map((s) => s.mode));
+    expect(modes).not.toContain(TransportMode.Tram);
+    expect(modes).not.toContain(TransportMode.Bus);
+  });
+
+  it('rejects an unknown transport mode', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/journeys')
+      .send({
+        origin: { coordinates: nearMosson },
+        destination: { coordinates: nearOdysseum },
+        modes: ['Trottinette'],
+      });
+
+    expect(response.status).toBe(400);
+  });
+
+  it("applies an authenticated user's preferred modes when the request sets none", async () => {
+    const token = await registerAndGetToken('preferred-modes@example.com');
+    await request(app.getHttpServer())
+      .patch('/profile')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ preferredModes: [TransportMode.Marche] })
+      .expect(200);
+
+    const response = await request(app.getHttpServer())
+      .post('/journeys')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        origin: { coordinates: nearMosson },
+        destination: { coordinates: nearOdysseum },
+        departureTime: '2026-07-10T07:00:00',
+      });
+
+    expect(response.status).toBe(201);
+    const modes = (
+      response.body as Array<{ segments: Array<{ mode: string }> }>
+    ).flatMap((j) => j.segments.map((s) => s.mode));
+    expect(modes).not.toContain(TransportMode.Tram);
+    expect(modes).toContain(TransportMode.Marche);
+  });
+
+  it('lets an explicit modes list override the profile preferences', async () => {
+    const token = await registerAndGetToken('explicit-modes@example.com');
+    await request(app.getHttpServer())
+      .patch('/profile')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ preferredModes: [TransportMode.Marche] })
+      .expect(200);
+
+    const response = await request(app.getHttpServer())
+      .post('/journeys')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        origin: { coordinates: nearMosson },
+        destination: { coordinates: nearOdysseum },
+        departureTime: '2026-07-10T07:00:00',
+        modes: [TransportMode.Tram, TransportMode.Marche],
+      });
+
+    expect(response.status).toBe(201);
+    const modes = (
+      response.body as Array<{ segments: Array<{ mode: string }> }>
+    ).flatMap((j) => j.segments.map((s) => s.mode));
+    expect(modes).toContain(TransportMode.Tram);
+  });
+
+  it('applies no filter for a user whose preferredModes is empty', async () => {
+    // The default at registration. An empty list is "no preference", not
+    // "no mode" — reading it as a filter would return zero results.
+    const token = await registerAndGetToken('empty-modes@example.com');
+
+    const response = await request(app.getHttpServer())
+      .post('/journeys')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        origin: { coordinates: nearMosson },
+        destination: { coordinates: nearOdysseum },
+        departureTime: '2026-07-10T07:00:00',
+      });
+
+    expect(response.status).toBe(201);
+    const modes = (
+      response.body as Array<{ segments: Array<{ mode: string }> }>
+    ).flatMap((j) => j.segments.map((s) => s.mode));
+    expect(modes).toContain(TransportMode.Tram);
+  });
+
+  it('plans for a guest with every mode, with no token at all', async () => {
+    // F1 guarantees the anonymous search: the optional guard must not turn the
+    // planner into an authenticated-only route.
+    const response = await request(app.getHttpServer())
+      .post('/journeys')
+      .send({
+        origin: { coordinates: nearMosson },
+        destination: { coordinates: nearOdysseum },
+        departureTime: '2026-07-10T07:00:00',
+      });
+
+    expect(response.status).toBe(201);
+    const modes = (
+      response.body as Array<{ segments: Array<{ mode: string }> }>
+    ).flatMap((j) => j.segments.map((s) => s.mode));
+    expect(modes).toContain(TransportMode.Tram);
   });
 
   it('rejects an invalid sort value', async () => {

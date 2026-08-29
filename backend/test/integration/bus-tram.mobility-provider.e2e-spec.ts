@@ -157,14 +157,18 @@ describe('BusTramMobilityProvider (e2e)', () => {
 
   it('does not return a WEEKEND-only trip on a weekday', async () => {
     // The mirror case: TRIP_L2_1 departs Corum at 09:00 on service WEEKEND
-    // (saturday/sunday). 2026-07-10 is a Friday, so it must not be proposed —
-    // otherwise the LIMIT 1 could hand back a phantom trip while a real
-    // weekday one exists.
+    // (saturday/sunday). 2026-07-10 is a Friday, so it must not be proposed.
+    // The Friday search is not empty — WEEKDAY's TRIP_L1_2 also calls at Corum
+    // (08:45) — so this asserts on the absence of the weekend trip rather than
+    // on an empty result, which would silently pass if the filter broke and
+    // both trips came back.
     const departureTime = new Date('2026-07-10T08:30:00');
 
     const segments = await provider.getSegments(corum, odysseum, departureTime);
 
-    expect(segments).toEqual([]);
+    expect(segments.map((s) => s.tripHeadsign)).not.toContain(
+      'Saint-Jean-de-Vedas',
+    );
   });
 
   it('returns a WEEKEND trip on a Saturday, when its service does run', async () => {
@@ -181,6 +185,61 @@ describe('BusTramMobilityProvider (e2e)', () => {
       tripHeadsign: 'Saint-Jean-de-Vedas',
       from: { name: 'Corum' },
     });
+  });
+
+  it('returns the next departures as separate alternatives, earliest first', async () => {
+    // TRIP_L1_1 (08:00) and TRIP_L1_2 (08:30) both run Mosson -> Odysseum on
+    // WEEKDAY. Before #9 the query stopped at LIMIT 1 and the 08:30 was
+    // invisible, so a user who just missed one tram saw no later option.
+    const departureTime = new Date('2026-07-10T07:00:00');
+
+    const segments = await provider.getSegments(
+      mosson,
+      odysseum,
+      departureTime,
+    );
+
+    expect(segments).toHaveLength(2);
+    // One row per trip, not per (boarding, alighting) pair of a single trip —
+    // and in departure order.
+    expect(segments.map((s) => s.from.name)).toEqual(['Mosson', 'Mosson']);
+    expect(segments.map((s) => s.to.name)).toEqual(['Odysseum', 'Odysseum']);
+    expect(segments.every((s) => s.durationSeconds === 30 * 60)).toBe(true);
+  });
+
+  it('proposes one row per trip when two of its stops are within the radius', async () => {
+    // The fixture's stops are kilometres apart, so a search only ever reaches
+    // one stop per trip. Real networks are denser: move Corum ~300m from
+    // Mosson and TRIP_L1_1 offers two boardings for the same departure.
+    // Without DISTINCT ON the query returns both, and the rider is shown the
+    // same tram twice instead of the next one.
+    await agencyRepository.query(
+      `UPDATE gtfs_stop SET location = ST_SetSRID(ST_MakePoint(3.8065, 43.6245), 4326) WHERE "stopId" = 'STOP_CORUM'`,
+    );
+    const departureTime = new Date('2026-07-10T07:00:00');
+
+    const segments = await provider.getSegments(
+      { lat: 43.6232, lon: 3.8045 },
+      odysseum,
+      departureTime,
+    );
+
+    expect(segments).toHaveLength(2);
+    expect(new Set(segments.map((s) => s.from.name)).size).toBe(1);
+  });
+
+  it('drops a departure already gone and keeps the later one', async () => {
+    // 08:10: the 08:00 tram has left, only TRIP_L1_2 (08:30) remains. Proves
+    // the several-departures query still honours the requested time.
+    const departureTime = new Date('2026-07-10T08:10:00');
+
+    const segments = await provider.getSegments(
+      mosson,
+      odysseum,
+      departureTime,
+    );
+
+    expect(segments).toHaveLength(1);
   });
 
   it('applies a GTFS-RT arrival delay to the matched stop_time, stretching durationSeconds', async () => {

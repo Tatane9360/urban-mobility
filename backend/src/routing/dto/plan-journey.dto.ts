@@ -1,6 +1,14 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsDate, IsIn, IsOptional, ValidateNested } from 'class-validator';
+import {
+  IsArray,
+  IsDate,
+  IsEnum,
+  IsIn,
+  IsOptional,
+  ValidateNested,
+} from 'class-validator';
+import { TransportMode } from '../../common/transport-mode.enum';
 import { JourneyPointDto } from './journey-point.dto';
 
 export type JourneySortCriterion = 'duration' | 'carbon';
@@ -45,4 +53,20 @@ export class PlanJourneyDto {
   @IsOptional()
   @IsIn(['duration', 'carbon'])
   sort?: JourneySortCriterion;
+
+  // Restricts which providers are called. Absent (not empty) means "no
+  // filter": for an authenticated user the Mobility Profile's preferredModes
+  // then applies, so F1's "itinéraires personnalisés" actually reaches the
+  // planner. An explicit list always wins over the profile.
+  @ApiPropertyOptional({
+    description:
+      'Transport modes to consider. Defaults to the profile preferences for an authenticated user, or to every mode.',
+    enum: TransportMode,
+    isArray: true,
+    example: [TransportMode.Tram, TransportMode.Marche],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsEnum(TransportMode, { each: true })
+  modes?: TransportMode[];
 }

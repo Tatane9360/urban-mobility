@@ -8,6 +8,8 @@ import { BikeMobilityProvider } from './bike.mobility-provider';
 import { BusTramMobilityProvider } from './bus-tram.mobility-provider';
 import { PlanJourneyDto } from './dto/plan-journey.dto';
 import { GeoPoint } from './geo-point';
+import { Repository } from 'typeorm';
+import { MobilityProfile } from '../auth/entities/mobility-profile.entity';
 import { JourneyPlannerService } from './journey-planner.service';
 import { RawJourneySegment } from './journey-segment';
 import { WalkMobilityProvider } from './walk.mobility-provider';
@@ -94,6 +96,18 @@ function planDto(
   return { origin, destination, sort };
 }
 
+// The planner only reads the profile to resolve preferred modes; a missing
+// profile (the guest case) is the same "no filter" as an empty one.
+function mockProfiles(
+  preferredModes: string[] | null = null,
+): Repository<MobilityProfile> {
+  return {
+    findOne: jest
+      .fn()
+      .mockResolvedValue(preferredModes === null ? null : { preferredModes }),
+  } as unknown as Repository<MobilityProfile>;
+}
+
 describe('JourneyPlannerService', () => {
   it('returns a Journey chaining Marche + Tram + Marche alongside the direct Marche candidate', async () => {
     const busTramProvider = {
@@ -110,6 +124,7 @@ describe('JourneyPlannerService', () => {
       busTramProvider,
       bikeProvider,
       walkProvider,
+      mockProfiles(),
     );
 
     const journeys = await service.plan(
@@ -157,6 +172,7 @@ describe('JourneyPlannerService', () => {
       busTramProvider,
       bikeProvider,
       mockWalkProvider(),
+      mockProfiles(),
     );
 
     const journeys = await service.plan(
@@ -186,6 +202,7 @@ describe('JourneyPlannerService', () => {
         getSegments: jest.fn().mockResolvedValue([]),
       } as unknown as BikeMobilityProvider,
       mockWalkProvider(),
+      mockProfiles(),
     );
 
     const journeys = await service.plan(
@@ -221,6 +238,7 @@ describe('JourneyPlannerService', () => {
         getSegments: jest.fn().mockResolvedValue([]),
       } as unknown as BikeMobilityProvider,
       mockWalkProvider(),
+      mockProfiles(),
     );
 
     const journeys = await service.plan(
@@ -272,6 +290,7 @@ describe('JourneyPlannerService', () => {
         getSegments: jest.fn().mockResolvedValue([]),
       } as unknown as BikeMobilityProvider,
       mockWalkProvider(),
+      mockProfiles(),
     );
 
     const journeys = await service.plan(
@@ -300,6 +319,7 @@ describe('JourneyPlannerService', () => {
       busTramProvider,
       bikeProvider,
       walkProvider,
+      mockProfiles(),
     );
 
     const journeys = await service.plan(
@@ -332,6 +352,7 @@ describe('JourneyPlannerService', () => {
       busTramProvider,
       bikeProvider,
       mockWalkProvider(),
+      mockProfiles(),
     );
 
     await service.plan(
@@ -356,6 +377,7 @@ describe('JourneyPlannerService', () => {
       { getSegments: jest.fn() } as unknown as BusTramMobilityProvider,
       { getSegments: jest.fn() } as unknown as BikeMobilityProvider,
       mockWalkProvider(),
+      mockProfiles(),
     );
 
     await expect(
@@ -377,6 +399,7 @@ describe('JourneyPlannerService', () => {
       { getSegments: jest.fn() } as unknown as BusTramMobilityProvider,
       { getSegments: jest.fn() } as unknown as BikeMobilityProvider,
       mockWalkProvider(),
+      mockProfiles(),
     );
 
     await expect(
@@ -439,6 +462,7 @@ describe('JourneyPlannerService', () => {
       busTramProvider,
       bikeProvider,
       slowWalkProvider,
+      mockProfiles(),
     );
 
     const byDuration = await service.plan(
