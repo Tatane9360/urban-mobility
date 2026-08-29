@@ -89,7 +89,13 @@ describe('Journeys (e2e)', () => {
     await agencyRepository.query(
       'TRUNCATE TABLE gtfs_stop_time, gtfs_trip, gtfs_stop, gtfs_calendar, gtfs_route, gtfs_agency CASCADE',
     );
-    await agencyRepository.query('TRUNCATE TABLE app_user CASCADE');
+    // Both tables explicitly: the 1-1 FK lives on app_user pointing AT
+    // mobility_profile, so CASCADE from app_user does not reach the profile
+    // rows (the same asymmetry the GDPR delete had to handle). Leaving them
+    // behind makes auth.e2e-spec's own profile count fail.
+    await agencyRepository.query(
+      'TRUNCATE TABLE app_user, mobility_profile CASCADE',
+    );
   });
 
   afterAll(async () => {
@@ -328,7 +334,12 @@ describe('Journeys (e2e)', () => {
     expect(response.status).toBe(400);
   });
 
-  it("applies an authenticated user's preferred modes when the request sets none", async () => {
+  it("ranks an authenticated user's preferred mode first without hiding the others", async () => {
+    // Preferences personalise the order, they never shorten the menu: someone
+    // who prefers walking must still be offered the tram. Marche alone is the
+    // slowest candidate here, so duration sorting would put it last — seeing
+    // it first proves the preference, and seeing the Tram at all proves
+    // nothing was filtered out.
     const token = await registerAndGetToken('preferred-modes@example.com');
     await request(app.getHttpServer())
       .patch('/profile')
@@ -346,14 +357,41 @@ describe('Journeys (e2e)', () => {
       });
 
     expect(response.status).toBe(201);
-    const modes = (
-      response.body as Array<{ segments: Array<{ mode: string }> }>
-    ).flatMap((j) => j.segments.map((s) => s.mode));
-    expect(modes).not.toContain(TransportMode.Tram);
-    expect(modes).toContain(TransportMode.Marche);
+    const journeys = response.body as Array<{
+      segments: Array<{ mode: TransportMode }>;
+    }>;
+    expect(
+      journeys[0].segments.every((s) => s.mode === TransportMode.Marche),
+    ).toBe(true);
+    const modes = journeys.flatMap((j) => j.segments.map((s) => s.mode));
+    expect(modes).toContain(TransportMode.Tram);
   });
 
-  it('lets an explicit modes list override the profile preferences', async () => {
+  it('keeps the plain duration order for a user with no preference', async () => {
+    // The counterpart: without a preference the walk-only candidate is the
+    // slowest, so it must NOT come first. Without this, a sort that always
+    // favoured Marche would pass the test above for the wrong reason.
+    const token = await registerAndGetToken('no-preference@example.com');
+
+    const response = await request(app.getHttpServer())
+      .post('/journeys')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        origin: { coordinates: nearMosson },
+        destination: { coordinates: nearOdysseum },
+        departureTime: '2026-07-10T07:00:00',
+      });
+
+    expect(response.status).toBe(201);
+    const journeys = response.body as Array<{
+      segments: Array<{ mode: TransportMode }>;
+    }>;
+    expect(
+      journeys[0].segments.every((s) => s.mode === TransportMode.Marche),
+    ).toBe(false);
+  });
+
+  it('filters on an explicit modes list, which the profile never overrides', async () => {
     const token = await registerAndGetToken('explicit-modes@example.com');
     await request(app.getHttpServer())
       .patch('/profile')
@@ -368,19 +406,23 @@ describe('Journeys (e2e)', () => {
         origin: { coordinates: nearMosson },
         destination: { coordinates: nearOdysseum },
         departureTime: '2026-07-10T07:00:00',
-        modes: [TransportMode.Tram, TransportMode.Marche],
+        // Deliberately excludes Tram, which this search would otherwise
+        // return: an explicit list must actually filter, and the profile
+        // (Marche) must not widen it back.
+        modes: [TransportMode.Marche],
       });
 
     expect(response.status).toBe(201);
     const modes = (
       response.body as Array<{ segments: Array<{ mode: string }> }>
     ).flatMap((j) => j.segments.map((s) => s.mode));
-    expect(modes).toContain(TransportMode.Tram);
+    expect(modes).not.toContain(TransportMode.Tram);
+    expect(modes).toContain(TransportMode.Marche);
   });
 
   it('applies no filter for a user whose preferredModes is empty', async () => {
-    // The default at registration. An empty list is "no preference", not
-    // "no mode" — reading it as a filter would return zero results.
+    // The default at registration. An empty list is "no preference" — and no
+    // preference at all can filter, since preferences only rank.
     const token = await registerAndGetToken('empty-modes@example.com');
 
     const response = await request(app.getHttpServer())

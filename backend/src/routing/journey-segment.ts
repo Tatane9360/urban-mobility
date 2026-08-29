@@ -34,6 +34,12 @@ export interface RawJourneySegment {
   // the segment. routeShortName is the human label ("1", "L2"), routeId is
   // the identifier GTFS-RT's informedEntity actually carries.
   routeId?: string | null;
+  // Bus/Tram only — the real wall-clock boarding time of this departure,
+  // read from the GTFS stop_time (plus any GTFS-RT delay). The planner
+  // otherwise derives every startTime from the search's departureTime, which
+  // makes several alternatives on the same line indistinguishable: they are
+  // different departures, not the same tram three times.
+  scheduledDeparture?: Date;
   // Bus/Tram only — GTFS-RT TripUpdate applied to the matched stop_time.
   // `realtime` is true when a delay was actually found for this trip+stop in
   // a fresh snapshot; false means the segment is pure static schedule and

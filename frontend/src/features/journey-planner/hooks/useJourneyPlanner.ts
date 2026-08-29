@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useAuth } from '../../auth/hooks/useAuth';
 import { planJourney } from '../api/plan-journey';
 import { ApiError } from '@/src/lib/api-client';
 import type { Journey, JourneyPoint, JourneySortCriterion } from '../types';
@@ -10,6 +11,9 @@ interface PlanState {
 }
 
 export function useJourneyPlanner() {
+  // Passed through to the planner so a signed-in user's preferred modes rank
+  // the results; null for a guest, which the backend handles as anonymous.
+  const { token } = useAuth();
   const [state, setState] = useState<PlanState>({ journeys: [], loading: false, error: null });
   const [sort, setSort] = useState<JourneySortCriterion>('duration');
 
@@ -20,7 +24,7 @@ export function useJourneyPlanner() {
   ): Promise<Journey[]> {
     setState({ journeys: [], loading: true, error: null });
     try {
-      const journeys = await planJourney({ origin, destination, sort, departureTime });
+      const journeys = await planJourney({ origin, destination, sort, departureTime }, token);
       setState({ journeys, loading: false, error: null });
       return journeys;
     } catch (err) {

@@ -57,7 +57,8 @@ export class JourneyPlannerService {
     // real "walk only" option (with its own duration) even when a faster
     // multimodal Journey exists, per the mode-icon picker (like Google Maps'
     // per-mode duration row).
-    const modes = await this.resolveModes(dto, userId);
+    const modes = this.resolveModes(dto);
+    const preferred = await this.preferredModesFor(userId);
     const wanted = (mode: TransportMode) => modes === null || modes.has(mode);
     // A mode nobody asked for isn't queried at all — the filter saves the
     // provider call, it doesn't discard its result afterwards.
@@ -100,32 +101,36 @@ export class JourneyPlannerService {
       journeys.push(this.toJourney(walkSegments, degraded, departureTime));
     }
 
-    return sortJourneys(journeys, dto.sort);
+    return sortJourneys(journeys, dto.sort, preferred);
   }
 
-  // null = no filtering. An explicit `modes` wins; otherwise an authenticated
-  // user's preferredModes applies. An empty list — the default at registration
-  // and a legitimate "no preference" — means every mode, never zero results.
-  private async resolveModes(
-    dto: PlanJourneyDto,
+  // null = no filtering. Only an explicit `modes` filters: that is the caller
+  // asking for a specific mode. The Mobility Profile deliberately does NOT
+  // filter — preferences rank the results, they never hide an option (see
+  // preferredModesFor / sortJourneys).
+  private resolveModes(dto: PlanJourneyDto): Set<TransportMode> | null {
+    if (dto.modes === undefined) return null;
+    return dto.modes.length > 0 ? new Set(dto.modes) : null;
+  }
+
+  // The authenticated user's preferred modes, used only to order candidates.
+  // Empty for a guest, and for a profile that has none.
+  private async preferredModesFor(
     userId?: string,
-  ): Promise<Set<TransportMode> | null> {
-    if (dto.modes !== undefined) {
-      return dto.modes.length > 0 ? new Set(dto.modes) : null;
-    }
-    if (!userId) return null;
+  ): Promise<Set<TransportMode>> {
+    if (!userId) return new Set();
 
     const profile = await this.profileRepository.findOne({
       where: { user: { id: userId } },
     });
-    const preferred = profile?.preferredModes ?? [];
     // preferredModes is jsonb, so it can hold anything a past write put there;
     // keeping only real TransportMode values stops a stale entry from
-    // filtering every mode out and returning nothing.
-    const known = preferred.filter((mode): mode is TransportMode =>
-      Object.values(TransportMode).includes(mode as TransportMode),
+    // reordering on a mode that no longer exists.
+    return new Set(
+      (profile?.preferredModes ?? []).filter((mode): mode is TransportMode =>
+        Object.values(TransportMode).includes(mode as TransportMode),
+      ),
     );
-    return known.length > 0 ? new Set(known) : null;
   }
 
   private async resolvePoint(point: {
@@ -193,6 +198,13 @@ export class JourneyPlannerService {
   ): Journey {
     let cursor = departureTime;
     const segments = rawSegments.map((s) => {
+      // A transit leg starts when its vehicle actually departs, not when the
+      // previous segment happens to end: the rider waits at the stop. Without
+      // this, three departures on one line all render at the search time and
+      // read as the same tram repeated.
+      if (s.scheduledDeparture && s.scheduledDeparture > cursor) {
+        cursor = s.scheduledDeparture;
+      }
       const startTime = cursor;
       const endTime = new Date(cursor.getTime() + s.durationSeconds * 1000);
       cursor = endTime;
@@ -206,7 +218,12 @@ export class JourneyPlannerService {
 
     return {
       segments,
-      durationSeconds: segments.reduce((sum, s) => sum + s.durationSeconds, 0),
+      // Door to door, waiting at the stop included — not the sum of the legs.
+      // Two departures on the same line have identical legs but a different
+      // wait, and the later one is genuinely the longer trip.
+      durationSeconds: Math.round(
+        (cursor.getTime() - departureTime.getTime()) / 1000,
+      ),
       carbonGrams,
       carComparison: this.carbonService.carComparison(segments, carbonGrams),
       degraded,
@@ -232,12 +249,35 @@ function withAlerts(
   });
 }
 
+// The Mobility Profile ranks, it never filters: a Journey whose core mode the
+// user prefers comes first, and everything else follows in the requested
+// order rather than disappearing. F1 asks for personalised itineraries, not a
+// shorter menu — someone who prefers walking must still be shown the tram.
 function sortJourneys(
   journeys: Journey[],
   criterion: JourneySortCriterion | undefined,
+  preferred: Set<TransportMode>,
 ): Journey[] {
-  if (criterion === 'carbon') {
-    return [...journeys].sort((a, b) => a.carbonGrams - b.carbonGrams);
-  }
-  return [...journeys].sort((a, b) => a.durationSeconds - b.durationSeconds);
+  const byCriterion =
+    criterion === 'carbon'
+      ? (a: Journey, b: Journey) => a.carbonGrams - b.carbonGrams
+      : (a: Journey, b: Journey) => a.durationSeconds - b.durationSeconds;
+
+  if (preferred.size === 0) return [...journeys].sort(byCriterion);
+
+  return [...journeys].sort((a, b) => {
+    const rank =
+      Number(isPreferred(b, preferred)) - Number(isPreferred(a, preferred));
+    return rank !== 0 ? rank : byCriterion(a, b);
+  });
+}
+
+// Matches on the core leg, not on every segment: transit and Vélo candidates
+// always carry bridging Marche segments at either end, so "some segment is
+// Marche" would make every candidate count as preferred walking.
+function isPreferred(journey: Journey, preferred: Set<TransportMode>): boolean {
+  const core = journey.segments.filter((s) => s.mode !== TransportMode.Marche);
+  return core.length === 0
+    ? preferred.has(TransportMode.Marche)
+    : core.some((s) => preferred.has(s.mode));
 }

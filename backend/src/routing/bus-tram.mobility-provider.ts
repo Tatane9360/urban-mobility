@@ -130,6 +130,13 @@ export class BusTramMobilityProvider implements MobilityProvider {
                st_from."departureTime" ASC,
                st_to."arrivalTime" DESC
       ) candidates
+      -- ponytail: soonest first. In a dense network these alternatives differ
+      -- mainly by BOARDING STOP rather than by departure time — several stops
+      -- fall inside the search radius, so the rider gets a real choice
+      -- (a closer stop vs. a faster ride) even when the times are a minute
+      -- apart. Ordering by a later-departure rule instead would need a
+      -- "next departure from the same stop" query, which is a different
+      -- feature.
       ORDER BY candidates."departureTime" ASC
       LIMIT $8
       `,
@@ -192,6 +199,13 @@ export class BusTramMobilityProvider implements MobilityProvider {
         realtime,
         // The delay a rider actually experiences: how much later they board.
         delaySeconds: departureDelay ?? 0,
+        // The real boarding time of THIS departure, so several alternatives on
+        // one line stay distinguishable. Built on departureTime's own calendar
+        // day, matching the day the calendar filter selected above.
+        scheduledDeparture: atTimeOfDay(
+          departureTime,
+          gtfsTimeToSeconds(row.departureTime) + (departureDelay ?? 0),
+        ),
       };
     });
   }
@@ -217,6 +231,18 @@ function toIsoDate(date: Date): string {
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+}
+
+// Wall-clock instant for a time-of-day on `date`'s own calendar day. Seconds
+// past midnight, so GTFS's >24:00:00 overnight convention rolls into the next
+// day on its own rather than being clamped.
+function atTimeOfDay(date: Date, secondsSinceMidnight: number): Date {
+  const midnight = new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate(),
+  );
+  return new Date(midnight.getTime() + secondsSinceMidnight * 1000);
 }
 
 function gtfsTimeToSeconds(time: string): number {

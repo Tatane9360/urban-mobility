@@ -54,13 +54,14 @@ export class PlanJourneyDto {
   @IsIn(['duration', 'carbon'])
   sort?: JourneySortCriterion;
 
-  // Restricts which providers are called. Absent (not empty) means "no
-  // filter": for an authenticated user the Mobility Profile's preferredModes
-  // then applies, so F1's "itinéraires personnalisés" actually reaches the
-  // planner. An explicit list always wins over the profile.
+  // Restricts which providers are called — the caller explicitly asking for a
+  // subset. The Mobility Profile does NOT filter: an authenticated user's
+  // preferredModes only ranks the candidates (see
+  // JourneyPlannerService.sortJourneys), so a preference never hides an
+  // option.
   @ApiPropertyOptional({
     description:
-      'Transport modes to consider. Defaults to the profile preferences for an authenticated user, or to every mode.',
+      'Transport modes to consider. Defaults to every mode; a profile preference ranks results rather than filtering them.',
     enum: TransportMode,
     isArray: true,
     example: [TransportMode.Tram, TransportMode.Marche],

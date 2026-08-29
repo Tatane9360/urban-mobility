@@ -160,6 +160,7 @@ export function JourneyPlannerScreen() {
           error={error}
           hasSearched={hasSearched}
           selectedIndex={selectedIndex}
+          onSelect={setSelectedIndex}
           canSave={token !== null}
           onSaveJourney={token ? handleSaveJourney : undefined}
           onStartNavigation={handleStartNavigation}
