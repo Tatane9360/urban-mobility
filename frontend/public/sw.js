@@ -1,5 +1,9 @@
-const CACHE_NAME = 'urbanflow-v1';
-const APP_SHELL = ['/', '/login', '/register', '/manifest.webmanifest'];
+const CACHE_NAME = 'urbanflow-v2';
+// /history and /profile are part of the shell too: offline, the history page
+// renders the saved journeys kept in localStorage (see
+// journey-history/offline-cache.ts). The per-user data itself is still never
+// cached here — see the fetch handler below.
+const APP_SHELL = ['/', '/login', '/register', '/history', '/profile', '/manifest.webmanifest'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));

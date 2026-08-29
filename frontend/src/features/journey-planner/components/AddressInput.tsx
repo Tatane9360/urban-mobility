@@ -3,6 +3,7 @@
 import { useId, useState } from 'react';
 import { Crosshair, MapPin, NavigationArrow } from '@phosphor-icons/react/dist/ssr';
 import { useGeocodeSuggestions } from '../hooks/useGeocodeSuggestions';
+import { readConsent, writeConsent } from '../geolocation-consent';
 import type { GeocodeResult, JourneyPoint } from '../types';
 
 interface AddressInputProps {
@@ -31,6 +32,8 @@ export function AddressInput({
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const { suggestions, loading } = useGeocodeSuggestions(picking ? '' : query);
+  // Shown instead of locating, until the user has answered once.
+  const [askingConsent, setAskingConsent] = useState(false);
 
   // A point picked on the map is owned by the parent, so its label is derived
   // rather than mirrored into state — typing clears the pick (onChange(null)
@@ -43,7 +46,7 @@ export function AddressInput({
     onChange({ coordinates: { lat: result.lat, lon: result.lon } });
   }
 
-  function useCurrentLocation() {
+  function locate() {
     if (!navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition((position) => {
       const { latitude, longitude } = position.coords;
@@ -51,6 +54,24 @@ export function AddressInput({
       setOpen(false);
       onChange({ coordinates: { lat: latitude, lon: longitude } });
     });
+  }
+
+  // The geolocation API is only ever reached through here: without a stored
+  // "granted", the click opens the consent prompt and asks the browser for
+  // nothing at all. Consent is read at click time rather than in an effect so
+  // a revocation from /profile takes effect without a reload.
+  function requestCurrentLocation() {
+    if (readConsent() === 'granted') {
+      locate();
+      return;
+    }
+    setAskingConsent(true);
+  }
+
+  function answerConsent(granted: boolean) {
+    writeConsent(granted ? 'granted' : 'denied');
+    setAskingConsent(false);
+    if (granted) locate();
   }
 
   return (
@@ -92,7 +113,7 @@ export function AddressInput({
         {allowGeolocation && (
           <button
             type="button"
-            onClick={useCurrentLocation}
+            onClick={requestCurrentLocation}
             aria-label="Utiliser ma position actuelle"
             className="shrink-0 rounded-full p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-[#1E3A5F] dark:hover:bg-zinc-800 dark:hover:text-[#3B6EA5]"
           >
@@ -100,6 +121,36 @@ export function AddressInput({
           </button>
         )}
       </div>
+
+      {askingConsent && (
+        <div
+          role="dialog"
+          aria-label="Consentement à la géolocalisation"
+          className="mt-2 rounded-lg border border-zinc-200 bg-white p-3 text-sm dark:border-zinc-800 dark:bg-zinc-900"
+        >
+          <p className="text-zinc-700 dark:text-zinc-300">
+            Utiliser votre position pour remplir ce champ ? Elle reste sur cet appareil et
+            n&apos;est jamais enregistrée sur nos serveurs. Vous pouvez revenir sur ce choix
+            depuis votre profil.
+          </p>
+          <div className="mt-3 flex gap-2">
+            <button
+              type="button"
+              onClick={() => answerConsent(true)}
+              className="rounded-lg bg-[#1E3A5F] px-3 py-1.5 text-xs font-medium text-white dark:bg-[#3B6EA5]"
+            >
+              Autoriser
+            </button>
+            <button
+              type="button"
+              onClick={() => answerConsent(false)}
+              className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 dark:border-zinc-700 dark:text-zinc-300"
+            >
+              Refuser
+            </button>
+          </div>
+        </div>
+      )}
 
       {open && (loading || suggestions.length > 0) && (
         <ul className="absolute z-10 mt-1 w-full rounded-lg border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-800 dark:bg-zinc-900">

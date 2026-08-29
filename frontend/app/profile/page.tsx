@@ -6,6 +6,7 @@ import { useAuth } from '@/src/features/auth/hooks/useAuth';
 import { useProfile } from '@/src/features/profile/hooks/useProfile';
 import { ProfileForm } from '@/src/features/profile/components/ProfileForm';
 import { UserDataSection } from '@/src/features/profile/components/UserDataSection';
+import { GeolocationConsentSection } from '@/src/features/profile/components/GeolocationConsentSection';
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -29,6 +30,7 @@ export default function ProfilePage() {
       </h1>
       <p className="mb-6 text-sm text-zinc-600 dark:text-zinc-400">{user?.email}</p>
       <ProfileForm profile={profile} saving={saving} onSave={save} />
+      <GeolocationConsentSection />
       {user && <UserDataSection email={user.email} />}
     </div>
   );
