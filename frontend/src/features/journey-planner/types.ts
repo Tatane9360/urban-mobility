@@ -25,6 +25,10 @@ export interface PlanJourneyRequest {
   origin: JourneyPoint;
   destination: JourneyPoint;
   sort?: JourneySortCriterion;
+  // ISO-8601 with offset. The backend parses it with new Date() via
+  // class-transformer, so a bare local string would be read against the
+  // server's clock instead of the user's.
+  departureTime?: string;
 }
 
 // Mirrors backend/src/routing/journey-segment.ts
@@ -104,3 +108,6 @@ export interface GeocodeResult {
   lat: number;
   lon: number;
 }
+
+// Which field a map click fills, or null when "pick on the map" is off.
+export type MapPickTarget = 'origin' | 'destination' | null;

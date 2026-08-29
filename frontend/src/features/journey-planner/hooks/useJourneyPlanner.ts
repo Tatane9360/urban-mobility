@@ -13,10 +13,14 @@ export function useJourneyPlanner() {
   const [state, setState] = useState<PlanState>({ journeys: [], loading: false, error: null });
   const [sort, setSort] = useState<JourneySortCriterion>('duration');
 
-  async function search(origin: JourneyPoint, destination: JourneyPoint): Promise<Journey[]> {
+  async function search(
+    origin: JourneyPoint,
+    destination: JourneyPoint,
+    departureTime?: string,
+  ): Promise<Journey[]> {
     setState({ journeys: [], loading: true, error: null });
     try {
-      const journeys = await planJourney({ origin, destination, sort });
+      const journeys = await planJourney({ origin, destination, sort, departureTime });
       setState({ journeys, loading: false, error: null });
       return journeys;
     } catch (err) {

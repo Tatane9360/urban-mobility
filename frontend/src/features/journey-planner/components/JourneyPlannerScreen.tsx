@@ -12,7 +12,8 @@ import { useJourneyPlanner } from '../hooks/useJourneyPlanner';
 import { useAuth } from '../../auth/hooks/useAuth';
 import { saveJourney } from '../api/save-journey';
 import { buildNavigationSteps } from '../navigation-steps';
-import type { Journey } from '../types';
+import { formatCoordinates } from '../format-coordinates';
+import type { Coordinates, Journey, JourneyPoint, MapPickTarget } from '../types';
 
 // Leaflet touches `window` at import time — must stay out of the server bundle.
 // The loading placeholder matters beyond UX: without it, Lighthouse picks the
@@ -34,6 +35,30 @@ export function JourneyPlannerScreen() {
   const [mapExpanded, setMapExpanded] = useState(false);
   const [navigatingJourney, setNavigatingJourney] = useState<Journey | null>(null);
   const [navStepIndex, setNavStepIndex] = useState(0);
+  // Origin/destination live here rather than in the form: the map is a
+  // sibling, and a map click has to reach whichever field is armed.
+  const [origin, setOrigin] = useState<JourneyPoint | null>(null);
+  const [destination, setDestination] = useState<JourneyPoint | null>(null);
+  const [pickTarget, setPickTarget] = useState<MapPickTarget>(null);
+  const [pickedLabels, setPickedLabels] = useState<{ origin: string | null; destination: string | null }>({
+    origin: null,
+    destination: null,
+  });
+
+  // Typing (or geocoding) over a picked point drops its label, handing the
+  // text box back to what the user is typing.
+  function setPointFor(target: 'origin' | 'destination', point: JourneyPoint | null) {
+    (target === 'origin' ? setOrigin : setDestination)(point);
+    setPickedLabels((labels) => ({ ...labels, [target]: null }));
+  }
+
+  function handleMapPick(point: Coordinates) {
+    if (!pickTarget) return;
+    const setPoint = pickTarget === 'origin' ? setOrigin : setDestination;
+    setPoint({ coordinates: point });
+    setPickedLabels((labels) => ({ ...labels, [pickTarget]: formatCoordinates(point) }));
+    setPickTarget(null);
+  }
 
   function handleSearch(...args: Parameters<typeof search>) {
     setHasSearched(true);
@@ -72,7 +97,23 @@ export function JourneyPlannerScreen() {
           journey={navigatingJourney ?? selectedJourney}
           focusBounds={navigatingJourney ? navSteps[navStepIndex]?.bounds : undefined}
           currentPosition={navigatingJourney ? navSteps[navStepIndex]?.currentPosition : undefined}
+          onPick={pickTarget ? handleMapPick : undefined}
         />
+        {pickTarget && (
+          <div
+            role="status"
+            className="absolute left-1/2 top-3 z-[1000] flex -translate-x-1/2 items-center gap-3 rounded-full border border-zinc-200 bg-white/95 py-1.5 pl-4 pr-1.5 text-sm text-zinc-700 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/95 dark:text-zinc-300"
+          >
+            Cliquez pour choisir {pickTarget === 'origin' ? 'le départ' : "l'arrivée"}
+            <button
+              type="button"
+              onClick={() => setPickTarget(null)}
+              className="rounded-full px-3 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+            >
+              Annuler
+            </button>
+          </div>
+        )}
         {navigatingJourney ? (
           <NavigationOverlay
             steps={navSteps}
@@ -97,7 +138,19 @@ export function JourneyPlannerScreen() {
         className={`flex w-full flex-col gap-4 lg:w-[420px] lg:shrink-0 ${mapExpanded || navigatingJourney ? 'hidden lg:flex' : ''}`}
       >
         <AlertsBanner />
-        <JourneySearchForm sort={sort} onSortChange={setSort} loading={loading} onSearch={handleSearch} />
+        <JourneySearchForm
+          sort={sort}
+          onSortChange={setSort}
+          loading={loading}
+          onSearch={handleSearch}
+          pickTarget={pickTarget}
+          onPickTargetChange={setPickTarget}
+          origin={origin}
+          onOriginChange={(point) => setPointFor('origin', point)}
+          destination={destination}
+          onDestinationChange={(point) => setPointFor('destination', point)}
+          pickedLabels={pickedLabels}
+        />
         {hasSearched && !loading && (
           <ModePicker journeys={journeys} selectedIndex={selectedIndex} onSelect={setSelectedIndex} />
         )}

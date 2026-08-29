@@ -1,7 +1,7 @@
 'use client';
 
 import { useId, useState } from 'react';
-import { MapPin, NavigationArrow } from '@phosphor-icons/react/dist/ssr';
+import { Crosshair, MapPin, NavigationArrow } from '@phosphor-icons/react/dist/ssr';
 import { useGeocodeSuggestions } from '../hooks/useGeocodeSuggestions';
 import type { GeocodeResult, JourneyPoint } from '../types';
 
@@ -10,13 +10,32 @@ interface AddressInputProps {
   value: JourneyPoint | null;
   onChange: (point: JourneyPoint | null) => void;
   allowGeolocation?: boolean;
+  // "Pick on the map" mode: this field is armed and waiting for a map click.
+  picking?: boolean;
+  onTogglePick?: () => void;
+  // Label to show when the point came from a map click — the geocoded and
+  // geolocated paths set their own label locally.
+  pickedLabel?: string | null;
 }
 
-export function AddressInput({ label, value, onChange, allowGeolocation }: AddressInputProps) {
+export function AddressInput({
+  label,
+  value,
+  onChange,
+  allowGeolocation,
+  picking,
+  onTogglePick,
+  pickedLabel,
+}: AddressInputProps) {
   const inputId = useId();
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
-  const { suggestions, loading } = useGeocodeSuggestions(query);
+  const { suggestions, loading } = useGeocodeSuggestions(picking ? '' : query);
+
+  // A point picked on the map is owned by the parent, so its label is derived
+  // rather than mirrored into state — typing clears the pick (onChange(null)
+  // in the parent) and hands the box back to `query`.
+  const displayed = pickedLabel ?? query;
 
   function selectSuggestion(result: GeocodeResult) {
     setQuery(result.displayName);
@@ -44,7 +63,7 @@ export function AddressInput({ label, value, onChange, allowGeolocation }: Addre
         <input
           id={inputId}
           type="text"
-          value={query}
+          value={displayed}
           placeholder="Adresse, lieu…"
           className="h-11 w-full bg-transparent text-sm text-zinc-900 outline-none placeholder:text-zinc-400 dark:text-zinc-50"
           onChange={(e) => {
@@ -55,6 +74,21 @@ export function AddressInput({ label, value, onChange, allowGeolocation }: Addre
           onFocus={() => setOpen(true)}
           onBlur={() => setTimeout(() => setOpen(false), 150)}
         />
+        {onTogglePick && (
+          <button
+            type="button"
+            onClick={onTogglePick}
+            aria-pressed={picking ?? false}
+            aria-label={`Choisir ${label} sur la carte`}
+            className={`shrink-0 rounded-full p-1.5 transition-colors ${
+              picking
+                ? 'bg-[#1E3A5F] text-white dark:bg-[#3B6EA5]'
+                : 'text-zinc-500 hover:bg-zinc-100 hover:text-[#1E3A5F] dark:hover:bg-zinc-800 dark:hover:text-[#3B6EA5]'
+            }`}
+          >
+            <Crosshair size={16} weight={picking ? 'fill' : 'regular'} />
+          </button>
+        )}
         {allowGeolocation && (
           <button
             type="button"

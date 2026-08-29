@@ -21,9 +21,11 @@ interface JourneyMapProps {
   // "You are here" marker for the walkthrough — lets a presenter show
   // progress along the route without a real GPS fix (see NavStep.currentPosition).
   currentPosition?: Coordinates;
+  // Set while a field is waiting for a map click ("choisir sur la carte").
+  onPick?: (point: Coordinates) => void;
 }
 
-export function JourneyMap({ journey, focusBounds, currentPosition }: JourneyMapProps) {
+export function JourneyMap({ journey, focusBounds, currentPosition, onPick }: JourneyMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const layerGroupRef = useRef<L.LayerGroup | null>(null);
@@ -133,6 +135,22 @@ export function JourneyMap({ journey, focusBounds, currentPosition }: JourneyMap
 
   useEffect(() => {
     const map = mapRef.current;
+    if (!map || !onPick) return;
+
+    // Leaflet fires `click` only for a real click — a pan that ends over the
+    // map is swallowed as a drag, so no handler on mobile pan.
+    const handleClick = (e: L.LeafletMouseEvent) => onPick({ lat: e.latlng.lat, lon: e.latlng.lng });
+    map.on('click', handleClick);
+    map.getContainer().style.cursor = 'crosshair';
+
+    return () => {
+      map.off('click', handleClick);
+      map.getContainer().style.cursor = '';
+    };
+  }, [onPick]);
+
+  useEffect(() => {
+    const map = mapRef.current;
     if (!map) return;
 
     positionMarkerRef.current?.remove();
@@ -153,7 +171,13 @@ export function JourneyMap({ journey, focusBounds, currentPosition }: JourneyMap
     <div
       ref={containerRef}
       role="img"
-      aria-label={journey ? "Tracé de l'itinéraire sur la carte" : 'Carte de Montpellier'}
+      aria-label={
+        onPick
+          ? 'Carte — cliquez pour choisir un point'
+          : journey
+            ? "Tracé de l'itinéraire sur la carte"
+            : 'Carte de Montpellier'
+      }
       className="h-full min-h-[320px] w-full overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-800"
     />
   );
