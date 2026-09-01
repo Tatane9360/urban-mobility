@@ -1,5 +1,5 @@
-import { config } from 'dotenv';
 import { DataSource } from 'typeorm';
+import { loadTestEnv } from './env';
 
 // The e2e suites TRUNCATE shared tables, so two runs against the same database
 // fight over ACCESS EXCLUSIVE locks and stall each other until the runner
@@ -23,7 +23,9 @@ const LOCK_KEY = 728431;
 let dataSource: DataSource | null = null;
 
 function createDataSource(): DataSource {
-  config();
+  // .env.test, not .env: this lock must be taken on the same database the
+  // suites TRUNCATE, and loading .env here would point it at the dev one.
+  loadTestEnv();
   const url = process.env.DATABASE_URL;
   // Mirrors src/database/database.module.ts: a managed host hands out one URL
   // and requires SSL, local docker uses the discrete vars.

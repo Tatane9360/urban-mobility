@@ -12,5 +12,8 @@
   },
   "maxWorkers": 1,
   "globalSetup": "<rootDir>/global-setup.ts",
-  "globalTeardown": "<rootDir>/global-teardown.ts"
+  "globalTeardown": "<rootDir>/global-teardown.ts",
+  "setupFiles": [
+    "<rootDir>/setup-env.ts"
+  ]
 }
