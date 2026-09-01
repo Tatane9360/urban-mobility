@@ -20,16 +20,21 @@ interface JourneyResultCardProps {
 
 export function JourneyResultCard({ journey, canSave, onSave, onStartNavigation }: JourneyResultCardProps) {
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
+  // A failed save used to drop straight back to idle with no message: on
+  // flaky mobile data the bookmark simply never stuck, silently.
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   async function handleSave(e: React.MouseEvent) {
     e.stopPropagation();
     if (!onSave || saveState !== 'idle') return;
     setSaveState('saving');
+    setSaveError(null);
     try {
       await onSave();
       setSaveState('saved');
     } catch {
       setSaveState('idle');
+      setSaveError("Impossible d'enregistrer cet itinéraire. Réessayez.");
     }
   }
 
@@ -58,6 +63,17 @@ export function JourneyResultCard({ journey, canSave, onSave, onStartNavigation 
           )}
         </div>
       </div>
+
+      {saveError && (
+        <p role="alert" className="mt-2 text-xs text-red-700 dark:text-red-400">
+          {saveError}
+        </p>
+      )}
+      {/* The check icon is the only success signal otherwise, which a screen
+          reader never sees. */}
+      <p role="status" aria-live="polite" className="sr-only">
+        {saveState === 'saved' ? 'Itinéraire enregistré.' : ''}
+      </p>
 
       <div className="mt-3 flex flex-col gap-1.5">
         {journey.segments.map((segment, index) => (

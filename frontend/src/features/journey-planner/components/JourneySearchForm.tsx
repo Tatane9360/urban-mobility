@@ -1,7 +1,7 @@
 'use client';
 
 import { useId, useState } from 'react';
-import { ArrowsDownUp, Clock, MagnifyingGlass } from '@phosphor-icons/react/dist/ssr';
+import { ArrowsDownUp, ArrowsClockwise, Clock, MagnifyingGlass } from '@phosphor-icons/react/dist/ssr';
 import { AddressInput } from './AddressInput';
 import { geocode } from '../api/geocode';
 import type { JourneyPoint, JourneySortCriterion, MapPickTarget } from '../types';
@@ -20,6 +20,8 @@ interface JourneySearchFormProps {
   destination: JourneyPoint | null;
   onDestinationChange: (point: JourneyPoint | null) => void;
   pickedLabels: { origin: string | null; destination: string | null };
+  // Swaps the two points and their map-pick labels, which the screen owns.
+  onSwap: () => void;
 }
 
 export function JourneySearchForm({
@@ -34,6 +36,7 @@ export function JourneySearchForm({
   destination,
   onDestinationChange,
   pickedLabels,
+  onSwap,
 }: JourneySearchFormProps) {
   const departureId = useId();
   // ponytail: empty means "maintenant" — no clock state to keep in sync, and
@@ -47,6 +50,18 @@ export function JourneySearchForm({
     destination: null,
   });
   const [resolving, setResolving] = useState(false);
+  // Bumped on every swap to remount both AddressInputs, since each owns the
+  // text it displays and cannot be rewritten from here.
+  const [swapCount, setSwapCount] = useState(0);
+
+  // The return trip is the commonest second search there is, and it used to
+  // mean retyping both addresses.
+  function handleSwap() {
+    onSwap();
+    setQueries(({ origin, destination }) => ({ origin: destination, destination: origin }));
+    setFieldErrors({ origin: null, destination: null });
+    setSwapCount((n) => n + 1);
+  }
 
   // Resolve a field the user typed but never picked from the list. Returns
   // null when there is nothing usable, and records why.
@@ -100,33 +115,50 @@ export function JourneySearchForm({
       onSubmit={handleSubmit}
       className="flex flex-col gap-4 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900"
     >
-      <AddressInput
-        label="Départ"
-        value={origin}
-        onChange={onOriginChange}
-        allowGeolocation
-        picking={pickTarget === 'origin'}
-        onTogglePick={() => onPickTargetChange(pickTarget === 'origin' ? null : 'origin')}
-        pickedLabel={pickedLabels.origin}
-        onQueryChange={(q) => {
-          setQueries((s) => ({ ...s, origin: q }));
-          setFieldErrors((e) => (e.origin ? { ...e, origin: null } : e));
-        }}
-        error={fieldErrors.origin}
-      />
-      <AddressInput
-        label="Arrivée"
-        value={destination}
-        onChange={onDestinationChange}
-        picking={pickTarget === 'destination'}
-        onTogglePick={() => onPickTargetChange(pickTarget === 'destination' ? null : 'destination')}
-        pickedLabel={pickedLabels.destination}
-        onQueryChange={(q) => {
-          setQueries((s) => ({ ...s, destination: q }));
-          setFieldErrors((e) => (e.destination ? { ...e, destination: null } : e));
-        }}
-        error={fieldErrors.destination}
-      />
+      <div className="relative flex flex-col gap-4">
+        <AddressInput
+          key={`origin-${swapCount}`}
+          label="Départ"
+          value={origin}
+          onChange={onOriginChange}
+          allowGeolocation
+          picking={pickTarget === 'origin'}
+          onTogglePick={() => onPickTargetChange(pickTarget === 'origin' ? null : 'origin')}
+          pickedLabel={pickedLabels.origin}
+          initialQuery={queries.origin}
+          onQueryChange={(q) => {
+            setQueries((s) => ({ ...s, origin: q }));
+            setFieldErrors((e) => (e.origin ? { ...e, origin: null } : e));
+          }}
+          error={fieldErrors.origin}
+        />
+        <AddressInput
+          key={`destination-${swapCount}`}
+          label="Arrivée"
+          value={destination}
+          onChange={onDestinationChange}
+          picking={pickTarget === 'destination'}
+          onTogglePick={() => onPickTargetChange(pickTarget === 'destination' ? null : 'destination')}
+          pickedLabel={pickedLabels.destination}
+          initialQuery={queries.destination}
+          onQueryChange={(q) => {
+            setQueries((s) => ({ ...s, destination: q }));
+            setFieldErrors((e) => (e.destination ? { ...e, destination: null } : e));
+          }}
+          error={fieldErrors.destination}
+        />
+
+        {/* Sits on the divider between the two fields, where a rider expects
+            it. Right-aligned so it never covers the inputs' own buttons. */}
+        <button
+          type="button"
+          onClick={handleSwap}
+          aria-label="Inverser le départ et l'arrivée"
+          className="absolute right-0 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-600 shadow-sm transition-colors hover:border-accent hover:text-accent dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400"
+        >
+          <ArrowsClockwise size={16} weight="bold" className="rotate-90" />
+        </button>
+      </div>
 
       <div>
         <label

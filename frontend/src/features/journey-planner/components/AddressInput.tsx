@@ -22,6 +22,10 @@ interface AddressInputProps {
   onQueryChange?: (query: string) => void;
   // Set by the form when submitting could not resolve this field.
   error?: string | null;
+  // Text to start from. Only read on mount: the box owns its own `query`
+  // afterwards, so the swap remounts both fields with a key instead of trying
+  // to write into them.
+  initialQuery?: string;
 }
 
 export function AddressInput({
@@ -34,10 +38,11 @@ export function AddressInput({
   pickedLabel,
   onQueryChange,
   error,
+  initialQuery = '',
 }: AddressInputProps) {
   const inputId = useId();
   const listId = `${inputId}-suggestions`;
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(initialQuery);
   const [open, setOpen] = useState(false);
   const { suggestions, loading } = useGeocodeSuggestions(picking ? '' : query);
   // Shown instead of locating, until the user has answered once.

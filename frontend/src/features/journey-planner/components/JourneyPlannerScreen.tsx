@@ -52,6 +52,15 @@ export function JourneyPlannerScreen() {
     setPickedLabels((labels) => ({ ...labels, [target]: null }));
   }
 
+  // Origin and destination trade places, labels included. The form flips the
+  // text the user typed; only what lives here can be swapped from here.
+  function swapEndpoints() {
+    setOrigin(destination);
+    setDestination(origin);
+    setPickedLabels((labels) => ({ origin: labels.destination, destination: labels.origin }));
+    setPickTarget(null);
+  }
+
   function handleMapPick(point: Coordinates) {
     if (!pickTarget) return;
     const setPoint = pickTarget === 'origin' ? setOrigin : setDestination;
@@ -153,6 +162,7 @@ export function JourneyPlannerScreen() {
           destination={destination}
           onDestinationChange={(point) => setPointFor('destination', point)}
           pickedLabels={pickedLabels}
+          onSwap={swapEndpoints}
         />
         {hasSearched && !loading && (
           <ModePicker journeys={journeys} selectedIndex={selectedIndex} onSelect={setSelectedIndex} />
