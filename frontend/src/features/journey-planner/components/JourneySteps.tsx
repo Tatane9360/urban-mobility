@@ -51,7 +51,7 @@ export function JourneySteps({ steps }: { steps: JourneyStep[] }) {
             <div className="flex flex-col gap-0.5">
               <span>{step.instruction}</span>
               {step.distanceMeters > 0 && (
-                <span className="text-zinc-400 dark:text-zinc-500">{formatDistance(step.distanceMeters)}</span>
+                <span className="text-zinc-600 dark:text-zinc-400">{formatDistance(step.distanceMeters)}</span>
               )}
             </div>
           </li>

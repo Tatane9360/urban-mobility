@@ -137,6 +137,9 @@ export function JourneyPlannerScreen() {
       <div
         className={`flex w-full flex-col gap-4 lg:w-[420px] lg:shrink-0 ${mapExpanded || navigatingJourney ? 'hidden lg:flex' : ''}`}
       >
+        <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 md:text-3xl dark:text-zinc-50">
+          Planifier un trajet
+        </h1>
         <AlertsBanner />
         <JourneySearchForm
           sort={sort}

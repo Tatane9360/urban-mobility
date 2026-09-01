@@ -69,7 +69,7 @@ export function SegmentBadge({ segment }: SegmentBadgeProps) {
     <div
       className={`overflow-hidden rounded-lg border text-xs font-medium ${
         isMotorized
-          ? 'border-[#1E3A5F]/20 bg-[#1E3A5F]/5 text-[#1E3A5F] dark:border-[#3B6EA5]/30 dark:bg-[#3B6EA5]/10 dark:text-[#3B6EA5]'
+          ? 'border-accent/20 bg-accent/5 text-accent'
           : 'border-zinc-200 bg-zinc-50 text-zinc-600 dark:border-zinc-800 dark:bg-zinc-800/50 dark:text-zinc-400'
       }`}
     >
@@ -96,7 +96,7 @@ export function SegmentBadge({ segment }: SegmentBadgeProps) {
             </>
           )}
           {isLate && (
-            <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold text-amber-800 dark:bg-amber-950/60 dark:text-amber-400">
+            <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-800 dark:bg-amber-950/60 dark:text-amber-400">
               +{Math.round(delaySeconds / 60)} min
             </span>
           )}
@@ -116,12 +116,12 @@ export function SegmentBadge({ segment }: SegmentBadgeProps) {
           )}
         </div>
         {isMotorized && segment.tripHeadsign && (
-          <span className="text-[11px] font-normal text-zinc-500 dark:text-zinc-400">
+          <span className="text-xs font-normal text-zinc-600 dark:text-zinc-400">
             Direction {segment.tripHeadsign}
           </span>
         )}
         {isLate && segment.startTime && (
-          <span className="text-[11px] font-normal text-amber-700 dark:text-amber-400">
+          <span className="text-xs font-normal text-amber-700 dark:text-amber-400">
             Départ temps réel {formatClock(segment.startTime)} (théorique{' '}
             {shiftClock(segment.startTime, delaySeconds)})
           </span>
@@ -129,7 +129,7 @@ export function SegmentBadge({ segment }: SegmentBadgeProps) {
       </button>
 
       {expanded && hasDetail && (
-        <div className="flex flex-col gap-1 border-t border-current/10 px-2.5 py-2 text-[11px] font-normal text-zinc-600 dark:text-zinc-400">
+        <div className="flex flex-col gap-1 border-t border-current/10 px-2.5 py-2 text-xs font-normal text-zinc-600 dark:text-zinc-400">
           {segment.from.name && <span>De : {segment.from.name}</span>}
           {segment.to.name && <span>À : {segment.to.name}</span>}
           <div className="flex items-center gap-1.5 pt-0.5">

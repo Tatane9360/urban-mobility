@@ -108,8 +108,8 @@ test('explains that a new search needs the network', async ({ page, context }) =
   await page.goto(`${PROD}/`);
 
   for (const label of ['Départ', 'Arrivée']) {
-    await page.getByLabel(label, { exact: true }).fill('Comédie');
-    await page.getByRole('button', { name: 'Comédie, Montpellier' }).click();
+    await page.getByRole('combobox', { name: label }).fill('Comédie');
+    await page.getByRole('option', { name: 'Comédie, Montpellier' }).click();
   }
 
   await context.setOffline(true);

@@ -53,7 +53,7 @@ test('locates only after consent is granted, and remembers it', async ({ page })
   await locateButton(page).click();
   await page.getByRole('button', { name: 'Autoriser' }).click();
 
-  await expect(page.getByLabel('Départ', { exact: true })).toHaveValue('Ma position actuelle');
+  await expect(page.getByRole('combobox', { name: 'Départ' })).toHaveValue('Ma position actuelle');
   expect(await geoCalls(page)).toBe(1);
   expect(await page.evaluate((k) => localStorage.getItem(k), CONSENT_KEY)).toBe('granted');
 

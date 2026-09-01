@@ -1,3 +1,6 @@
+'use client';
+
+import { useEffect, useRef } from 'react';
 import { CaretLeft, CaretRight, X } from '@phosphor-icons/react/dist/ssr';
 import type { NavStep } from '../navigation-steps';
 
@@ -14,17 +17,48 @@ interface NavigationOverlayProps {
 }
 
 export function NavigationOverlay({ steps, currentIndex, onPrevious, onNext, onExit }: NavigationOverlayProps) {
+  const headingRef = useRef<HTMLSpanElement>(null);
   const step = steps[currentIndex];
+
+  // Starting navigation hides the results panel (`hidden lg:flex`), so the
+  // button that was focused disappears under the user. Pull focus into the
+  // overlay instead of leaving it on an element that is no longer rendered.
+  useEffect(() => {
+    headingRef.current?.focus();
+  }, []);
+
+  // Escape is the expected way out of a dialog, and on mobile the overlay
+  // covers the whole map.
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') onExit();
+    }
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [onExit]);
+
   if (!step) return null;
 
   return (
-    <div className="absolute inset-x-3 top-3 z-[1000] flex flex-col gap-2 rounded-lg border border-zinc-200 bg-white/95 p-3 shadow-lg backdrop-blur dark:border-zinc-800 dark:bg-zinc-900/95">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Navigation pas à pas"
+      className="absolute inset-x-3 top-3 z-[1000] flex flex-col gap-2 rounded-lg border border-zinc-200 bg-white/95 p-3 shadow-lg backdrop-blur dark:border-zinc-800 dark:bg-zinc-900/95"
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="flex flex-col gap-0.5">
           <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
             Étape {currentIndex + 1} / {steps.length}
           </span>
-          <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">{step.instruction}</span>
+          <span
+            ref={headingRef}
+            tabIndex={-1}
+            aria-live="assertive"
+            className="text-sm font-semibold text-zinc-900 outline-none dark:text-zinc-50"
+          >
+            {step.instruction}
+          </span>
           {step.distanceMeters > 0 && (
             <span className="text-xs text-zinc-500 dark:text-zinc-400">{formatDistance(step.distanceMeters)}</span>
           )}
@@ -53,7 +87,7 @@ export function NavigationOverlay({ steps, currentIndex, onPrevious, onNext, onE
           type="button"
           onClick={onNext}
           disabled={currentIndex === steps.length - 1}
-          className="flex items-center gap-1 rounded-md bg-[#1E3A5F] px-2.5 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[#16293F] disabled:cursor-not-allowed disabled:opacity-40 dark:bg-[#3B6EA5] dark:hover:bg-[#4E82BA]"
+          className="flex items-center gap-1 rounded-md bg-accent px-2.5 py-1.5 text-sm font-medium text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-40"
         >
           Suivant
           <CaretRight size={14} weight="bold" />

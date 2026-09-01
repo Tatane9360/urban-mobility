@@ -66,8 +66,8 @@ async function search(page: Page) {
   await page.goto('/');
 
   for (const label of ['Départ', 'Arrivée']) {
-    await page.getByLabel(label, { exact: true }).fill('Comédie');
-    await page.getByRole('button', { name: SUGGESTION.displayName }).click();
+    await page.getByRole('combobox', { name: label }).fill('Comédie');
+    await page.getByRole('option', { name: SUGGESTION.displayName }).click();
   }
   await page.getByRole('button', { name: 'Rechercher' }).click();
 }

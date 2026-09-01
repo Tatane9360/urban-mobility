@@ -40,13 +40,13 @@ test('plans a journey and shows duration and carbon footprint', async ({ page })
 
   await page.goto('/');
 
-  const origin = page.getByLabel('Départ', { exact: true });
+  const origin = page.getByRole('combobox', { name: 'Départ' });
   await origin.fill('Comédie Montpellier');
-  await page.getByRole('button', { name: ORIGIN_SUGGESTION.displayName }).click();
+  await page.getByRole('option', { name: ORIGIN_SUGGESTION.displayName }).click();
 
-  const destination = page.getByLabel('Arrivée', { exact: true });
+  const destination = page.getByRole('combobox', { name: 'Arrivée' });
   await destination.fill('Gare Saint-Roch');
-  await page.getByRole('button', { name: DESTINATION_SUGGESTION.displayName }).click();
+  await page.getByRole('option', { name: DESTINATION_SUGGESTION.displayName }).click();
 
   await page.getByRole('button', { name: 'Rechercher' }).click();
 
