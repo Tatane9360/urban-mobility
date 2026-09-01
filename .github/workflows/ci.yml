@@ -53,6 +53,17 @@ jobs:
         working-directory: backend
       - run: pnpm test
         working-directory: backend
+      # The e2e suites need PostGIS and uuid-ossp, and TRUNCATE shared tables
+      # between specs. The service container above is created fresh for this
+      # job and thrown away with it, so there is nothing here to protect.
+      - name: Create the e2e database
+        run: |
+          PGPASSWORD=urbanmobility psql -h localhost -U urbanmobility -d postgres \
+            -c "CREATE DATABASE urbanmobility_test;"
+          PGPASSWORD=urbanmobility psql -h localhost -U urbanmobility -d urbanmobility_test \
+            -c "CREATE EXTENSION IF NOT EXISTS postgis; CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";"
+      - run: pnpm test:e2e
+        working-directory: backend
 
   frontend:
     runs-on: ubuntu-latest
@@ -70,5 +81,51 @@ jobs:
           cache-dependency-path: frontend/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
         working-directory: frontend
+      # `next build` type-checks but does not run ESLint, so the hook rules it
+      # enforces (setState in an effect, refs read during render) never got
+      # checked in CI.
+      - run: pnpm lint
+        working-directory: frontend
+      - run: pnpm exec tsc --noEmit
+        working-directory: frontend
       - run: pnpm build
         working-directory: frontend
+
+  # Separate job: the Playwright browsers are a slow download, and keeping it
+  # off the build job means a broken test does not hide a broken build.
+  frontend-e2e:
+    runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_API_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.12.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+        working-directory: frontend
+      - name: Cache the Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('frontend/pnpm-lock.yaml') }}
+      - if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: pnpm exec playwright install --with-deps chromium
+        working-directory: frontend
+      # No backend service here: every spec stubs its own network calls with
+      # page.route, so a real API would only add flakiness. playwright.config
+      # starts both the dev server and a production build itself.
+      - run: pnpm test:e2e
+        working-directory: frontend
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+          retention-days: 7

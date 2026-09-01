@@ -106,7 +106,6 @@ test('says the account still exists when deletion fails', async ({ page }) => {
 });
 
 test('the address field has an accessible name of its own', async ({ page }) => {
-  const main = mainOf(page);
   await signIn(page);
   await page.route('http://localhost:3000/profile', (route) => route.fulfill({ json: PROFILE }));
 
