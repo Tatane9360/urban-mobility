@@ -54,11 +54,12 @@ export interface RawJourneySegment {
   // the rider follows the vehicle, not directions) and absent whenever ORS
   // was unreachable and the provider fell back to the straight-line estimate.
   steps?: JourneyStep[];
-  // Marche/Vélo only — the real road/path polyline from OpenRouteService, in
-  // travel order. Same absence conditions as `steps`. Bus/Tram segments keep
-  // drawing as a straight from/to line — GTFS carries stop pairs, not a
-  // per-segment shape, and OpenRouteService has no "follow this transit
-  // line" profile (see the Haversine-distance comment on distanceMeters).
+  // The polyline to draw, in travel order. Marche/Vélo: the real road/path
+  // shape from OpenRouteService, same absence conditions as `steps`.
+  // Bus/Tram: the stops the ride actually serves, boarding and alighting
+  // included — TaM ships no shapes.txt, so this follows the route by its stops
+  // rather than by the rail/road alignment. Absent when the ride is two
+  // consecutive stops, where the chord is already the whole line.
   geometry?: JourneyWaypoint[];
 }
 

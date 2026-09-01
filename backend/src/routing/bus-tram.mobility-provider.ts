@@ -53,6 +53,18 @@ interface CandidateRow {
   toStopName: string;
   toLon: number;
   toLat: number;
+  fromSequence: number;
+  toSequence: number;
+}
+
+// One stop along a ride, used to draw the line through the stops it actually
+// serves instead of a straight chord between boarding and alighting.
+interface RideStopRow {
+  tripId: string;
+  stopSequence: number;
+  name: string;
+  lat: number;
+  lon: number;
 }
 
 @Injectable()
@@ -98,7 +110,9 @@ export class BusTramMobilityProvider implements MobilityProvider {
              ST_Y(stop_from.location::geometry) AS "fromLat",
              stop_to."stopName" AS "toStopName",
              ST_X(stop_to.location::geometry) AS "toLon",
-             ST_Y(stop_to.location::geometry) AS "toLat"
+             ST_Y(stop_to.location::geometry) AS "toLat",
+             st_from."stopSequence" AS "fromSequence",
+             st_to."stopSequence" AS "toSequence"
       FROM gtfs_stop_time st_from
       JOIN gtfs_stop stop_from ON stop_from.id = st_from."stopDbId"
       JOIN gtfs_stop_time st_to
@@ -152,6 +166,8 @@ export class BusTramMobilityProvider implements MobilityProvider {
       ],
     );
 
+    const geometries = await this.rideGeometries(rows);
+
     // Only a fresh GTFS-RT snapshot may shift a schedule; a stale one is
     // served as pure theory (see GtfsRtService.isFresh). Freshness is measured
     // against the wall clock, deliberately NOT against departureTime — the
@@ -199,6 +215,11 @@ export class BusTramMobilityProvider implements MobilityProvider {
         realtime,
         // The delay a rider actually experiences: how much later they board.
         delaySeconds: departureDelay ?? 0,
+        // The stops this ride actually serves between boarding and alighting.
+        // Not the rail/road alignment — TaM's GTFS ships no shapes.txt — but a
+        // line through the served stops follows the route far more closely
+        // than a single chord, and needs no extra data source.
+        geometry: geometries.get(row.tripId),
         // The real boarding time of THIS departure, so several alternatives on
         // one line stay distinguishable. Built on departureTime's own calendar
         // day, matching the day the calendar filter selected above.
@@ -208,6 +229,54 @@ export class BusTramMobilityProvider implements MobilityProvider {
         ),
       };
     });
+  }
+
+  // One query for every candidate ride, keyed by trip: N candidates would
+  // otherwise mean N round trips. Returns the ordered stop list of each ride,
+  // boarding and alighting included, so the caller can use it as a polyline.
+  private async rideGeometries(
+    rows: CandidateRow[],
+  ): Promise<Map<string, { name: string; lat: number; lon: number }[]>> {
+    const geometries = new Map<
+      string,
+      { name: string; lat: number; lon: number }[]
+    >();
+    if (rows.length === 0) return geometries;
+
+    // A ride of two consecutive stops has nothing between them, so its chord
+    // is already the whole line — no need to ask the database.
+    const rides = rows.filter((row) => row.toSequence - row.fromSequence > 1);
+    if (rides.length === 0) return geometries;
+
+    const stops: RideStopRow[] = await this.dataSource.query(
+      `
+      SELECT t."tripId" AS "tripId",
+             st."stopSequence" AS "stopSequence",
+             s."stopName" AS "name",
+             ST_X(s.location::geometry) AS "lon",
+             ST_Y(s.location::geometry) AS "lat"
+      FROM unnest($1::text[], $2::int[], $3::int[]) AS ride("tripId", lo, hi)
+      JOIN gtfs_trip t ON t."tripId" = ride."tripId"
+      JOIN gtfs_stop_time st ON st."tripDbId" = t.id
+       AND st."stopSequence" BETWEEN ride.lo AND ride.hi
+      JOIN gtfs_stop s ON s.id = st."stopDbId"
+      ORDER BY t."tripId", st."stopSequence"
+      `,
+      [
+        rides.map((row) => row.tripId),
+        rides.map((row) => row.fromSequence),
+        rides.map((row) => row.toSequence),
+      ],
+    );
+
+    // Rows arrive ordered by (tripId, stopSequence), so appending preserves
+    // travel order.
+    for (const stop of stops) {
+      const path = geometries.get(stop.tripId) ?? [];
+      path.push({ name: stop.name, lat: stop.lat, lon: stop.lon });
+      geometries.set(stop.tripId, path);
+    }
+    return geometries;
   }
 }
 

@@ -115,6 +115,35 @@ describe('BusTramMobilityProvider (e2e)', () => {
     });
   });
 
+  // TaM ships no shapes.txt, so a transit segment used to draw as a straight
+  // chord between boarding and alighting. The stops the ride actually serves
+  // follow the route far more closely and need no extra data source.
+  it('draws a ride through the stops it serves, not a straight chord', async () => {
+    const departureTime = new Date('2026-07-10T07:00:00');
+
+    const segments = await provider.getSegments(
+      mosson,
+      odysseum,
+      departureTime,
+    );
+
+    // Mosson -> Corum -> Odysseum: the middle stop must be on the line.
+    expect(segments[0].geometry?.map((p) => p.name)).toEqual([
+      'Mosson',
+      'Corum',
+      'Odysseum',
+    ]);
+  });
+
+  it('omits the geometry when the ride has no intermediate stop', async () => {
+    const departureTime = new Date('2026-07-10T07:00:00');
+
+    const segments = await provider.getSegments(mosson, corum, departureTime);
+
+    // Two consecutive stops: the chord already is the whole line.
+    expect(segments[0].geometry).toBeUndefined();
+  });
+
   it('does not return a trip whose departure is before the requested time', async () => {
     // TRIP_L1_1 departs Mosson at 08:00; searching from 09:00 excludes it.
     const departureTime = new Date('2026-07-10T09:00:00');
