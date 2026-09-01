@@ -12,16 +12,22 @@ import {
 } from './gtfs-rt.types';
 
 // ponytail: PRD KPI is <=30s staleness for GTFS-RT; poll at half that so the
-// cache is never more than ~15s stale.
-const POLL_INTERVAL_MS = 15_000;
+// cache is never more than ~30s stale. ponytail: 30s, not 15s — TaM throttles
+// TripUpdate.pb hard enough that a single client polling every 20s still gets
+// HTTP 429 about half the time (measured 2026-09-01, with this service stopped),
+// so a tighter interval buys no freshness and only risks a ban.
+const POLL_INTERVAL_MS = 30_000;
 
-// ponytail: a snapshot older than this is served as "degraded" (theoretical
-// schedules) rather than passed off as real-time. Three poll intervals: one
-// missed refresh is a normal transient (TaM's feed occasionally 500s), two
-// consecutive failures mean the feed is actually down. Tighter than 3x and a
-// single hiccup flips the whole UI to degraded; looser and a stale snapshot
-// outlives the PRD's 30s freshness KPI by more than one extra poll cycle.
-const STALE_AFTER_MS = 3 * POLL_INTERVAL_MS;
+// A snapshot older than this is served as "degraded" (theoretical schedules)
+// rather than passed off as real-time.
+//
+// ponytail: pinned to the PRD's 30s freshness KPI, NOT derived from
+// POLL_INTERVAL_MS. It used to be 3x the poll; at a 30s poll that would be 90s,
+// which would serve minute-and-a-half-old positions as live and break the KPI.
+// The cost of pinning it is that one missed refresh now flips the UI to
+// degraded — which is the honest reading, since the data really is over 30s old
+// at that point.
+const STALE_AFTER_MS = 30_000;
 
 // ponytail: alerts are polled on their own, much slower interval. Polling all
 // three feeds x two networks at 15s made data.montpellier3m.fr answer HTTP 429
@@ -94,21 +100,44 @@ export class GtfsRtService implements OnModuleInit {
   @Interval(POLL_INTERVAL_MS)
   async refresh(): Promise<void> {
     try {
+      // ponytail: allSettled, not all — TaM throttles the two feeds
+      // independently, and Promise.all would throw away a VehiclePosition that
+      // answered 200 just because its TripUpdate sibling returned 429.
       const [vehicleFeeds, tripUpdateFeeds] = await Promise.all([
-        Promise.all(this.vehiclePositionUrls.map((u) => this.fetchFeed(u))),
-        Promise.all(this.tripUpdateUrls.map((u) => this.fetchFeed(u))),
+        this.fetchFeeds(this.vehiclePositionUrls),
+        this.fetchFeeds(this.tripUpdateUrls),
       ]);
 
+      // A feed group that answered nothing must not overwrite what it holds
+      // with an empty result that still looks fresh — the delay index in
+      // particular, since an empty Map reads as "no train is late".
+      if (vehicleFeeds.failures.length > 0 && vehicleFeeds.entities.length === 0) {
+        throw new Error(vehicleFeeds.failures[0]);
+      }
+      if (tripUpdateFeeds.failures.length > 0 && tripUpdateFeeds.entities.length === 0) {
+        throw new Error(tripUpdateFeeds.failures[0]);
+      }
+
       this.snapshot = {
-        vehicles: vehicleFeeds.flatMap(toVehiclePositions),
+        vehicles: vehicleFeeds.entities.flatMap(toVehiclePositions),
         delays: new Map(
-          tripUpdateFeeds
+          tripUpdateFeeds.entities
             .flatMap(toTripStopDelays)
             .map((d) => [tripStopKey(d.tripId, d.stopId), d]),
         ),
         alerts: this.alerts,
         fetchedAt: new Date(),
       };
+
+      // A throttled feed is expected here and already handled by keeping the
+      // rest of the snapshot, so it is not an error — logging it as one made
+      // the console shout every cycle about a non-event.
+      const failures = [...vehicleFeeds.failures, ...tripUpdateFeeds.failures];
+      if (failures.length > 0) {
+        this.logger.warn(
+          `GTFS-RT partial refresh, kept ${failures.length} feed(s) from the previous snapshot: ${failures.join('; ')}`,
+        );
+      }
     } catch (err) {
       this.logger.error(
         `GTFS-RT refresh failed, keeping previous snapshot: ${(err as Error).message}`,
@@ -160,6 +189,24 @@ export class GtfsRtService implements OnModuleInit {
         (a.activeFrom === null || a.activeFrom <= now) &&
         (a.activeUntil === null || a.activeUntil >= now),
     );
+  }
+
+  // Fetches every URL, keeping whatever answered and reporting the rest, so one
+  // throttled endpoint cannot discard its siblings' data.
+  private async fetchFeeds(urls: string[]): Promise<{
+    entities: transit_realtime.IFeedEntity[][];
+    failures: string[];
+  }> {
+    const results = await Promise.allSettled(
+      urls.map((u) => this.fetchFeed(u)),
+    );
+    const entities: transit_realtime.IFeedEntity[][] = [];
+    const failures: string[] = [];
+    for (const result of results) {
+      if (result.status === 'fulfilled') entities.push(result.value);
+      else failures.push((result.reason as Error).message);
+    }
+    return { entities, failures };
   }
 
   private async fetchFeed(

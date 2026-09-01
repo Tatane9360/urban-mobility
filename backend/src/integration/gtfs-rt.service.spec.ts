@@ -361,9 +361,10 @@ describe('GtfsRtService', () => {
     const fetchedAt = service.getSnapshot()!.fetchedAt;
 
     expect(service.isFresh(new Date(fetchedAt.getTime() + 10_000))).toBe(true);
-    // 45s = 3 poll intervals, the documented threshold.
-    expect(service.isFresh(new Date(fetchedAt.getTime() + 44_000))).toBe(true);
-    expect(service.isFresh(new Date(fetchedAt.getTime() + 46_000))).toBe(false);
+    // 30s: the PRD freshness KPI, which the threshold is pinned to rather than
+    // derived from the poll interval.
+    expect(service.isFresh(new Date(fetchedAt.getTime() + 29_000))).toBe(true);
+    expect(service.isFresh(new Date(fetchedAt.getTime() + 31_000))).toBe(false);
     expect(service.isFresh(new Date(fetchedAt.getTime() + 600_000))).toBe(
       false,
     );
@@ -478,6 +479,34 @@ describe('GtfsRtService', () => {
     await service.refresh();
 
     expect(service.getSnapshot()).toBe(firstSnapshot);
+  });
+
+  // TaM throttles the two networks independently, so one 429 must not discard
+  // the sibling feed that answered 200.
+  it('keeps the feed that answered when its sibling is throttled', async () => {
+    global.fetch = jest.fn((url: string) =>
+      url.includes('Suburbain/VehiclePosition')
+        ? Promise.resolve({ ok: false, status: 429 } as unknown as Response)
+        : Promise.resolve(
+            pbResponse(
+              encodeFeed([
+                {
+                  id: 'VP_1',
+                  vehicle: {
+                    vehicle: { id: 'BUS_1' },
+                    position: { latitude: 43.6, longitude: 3.87 },
+                  },
+                },
+              ]),
+            ),
+          ),
+    );
+
+    const service = new GtfsRtService(mockConfig());
+    await service.refresh();
+
+    // The Urbain vehicles survived the Suburbain 429.
+    expect(service.getSnapshot()!.vehicles.length).toBeGreaterThan(0);
   });
 
   it('keeps the previous snapshot when a feed returns corrupted bytes', async () => {
