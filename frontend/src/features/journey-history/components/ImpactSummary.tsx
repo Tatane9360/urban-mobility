@@ -13,8 +13,8 @@ const MODE_ICON: Record<TransportMode, typeof Train> = {
 // one palette. Never the sole carrier of meaning: every bar is also labelled
 // with its mode name and its share in text.
 const MODE_BAR: Record<TransportMode, string> = {
-  [TransportMode.Tram]: 'bg-[#1E3A5F] dark:bg-[#3B6EA5]',
-  [TransportMode.Bus]: 'bg-[#1E3A5F] dark:bg-[#3B6EA5]',
+  [TransportMode.Tram]: 'bg-accent',
+  [TransportMode.Bus]: 'bg-accent',
   [TransportMode.Velo]: 'bg-emerald-600 dark:bg-emerald-500',
   [TransportMode.Marche]: 'bg-emerald-600 dark:bg-emerald-500',
 };

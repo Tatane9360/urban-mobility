@@ -16,10 +16,10 @@ export function AppHeader() {
         <nav className="flex items-center gap-4 text-sm">
           {user ? (
             <>
-              <Link href="/history" className="font-medium text-zinc-700 hover:text-[#1E3A5F] dark:text-zinc-300 dark:hover:text-[#3B6EA5]">
+              <Link href="/history" className="font-medium text-zinc-700 hover:text-accent dark:text-zinc-300">
                 Historique
               </Link>
-              <Link href="/profile" className="font-medium text-zinc-700 hover:text-[#1E3A5F] dark:text-zinc-300 dark:hover:text-[#3B6EA5]">
+              <Link href="/profile" className="font-medium text-zinc-700 hover:text-accent dark:text-zinc-300">
                 Profil
               </Link>
               <button
@@ -33,7 +33,7 @@ export function AppHeader() {
           ) : (
             <Link
               href="/login"
-              className="rounded-lg bg-[#1E3A5F] px-3 py-1.5 font-medium text-white transition-colors hover:bg-[#16293F] dark:bg-[#3B6EA5] dark:hover:bg-[#4E82BA]"
+              className="rounded-lg bg-accent px-3 py-1.5 font-medium text-white transition-colors hover:bg-accent-hover"
             >
               Connexion
             </Link>

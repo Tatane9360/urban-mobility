@@ -59,7 +59,7 @@ export function AuthForm({ title, submitLabel, minPasswordLength, onSubmit, foot
             autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="h-11 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm text-zinc-900 outline-none focus:border-[#1E3A5F] dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-50 dark:focus:border-[#3B6EA5]"
+            className="h-11 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm text-zinc-900 outline-none focus:border-accent dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-50"
           />
         </div>
 
@@ -75,7 +75,7 @@ export function AuthForm({ title, submitLabel, minPasswordLength, onSubmit, foot
             autoComplete={minPasswordLength ? 'new-password' : 'current-password'}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="h-11 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm text-zinc-900 outline-none focus:border-[#1E3A5F] dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-50 dark:focus:border-[#3B6EA5]"
+            className="h-11 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm text-zinc-900 outline-none focus:border-accent dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-50"
           />
         </div>
 
@@ -88,7 +88,7 @@ export function AuthForm({ title, submitLabel, minPasswordLength, onSubmit, foot
         <button
           type="submit"
           disabled={loading}
-          className="h-11 rounded-lg bg-[#1E3A5F] text-sm font-medium text-white transition-colors hover:bg-[#16293F] disabled:cursor-not-allowed disabled:opacity-40 dark:bg-[#3B6EA5] dark:hover:bg-[#4E82BA]"
+          className="h-11 rounded-lg bg-accent text-sm font-medium text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-40"
         >
           {loading ? 'Patientez…' : submitLabel}
         </button>

@@ -13,7 +13,7 @@ export default function LoginPage() {
       footer={
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
           Pas encore de compte ?{' '}
-          <Link href="/register" className="font-medium text-[#1E3A5F] hover:underline dark:text-[#3B6EA5]">
+          <Link href="/register" className="font-medium text-accent hover:underline">
             Créer un compte
           </Link>
         </p>

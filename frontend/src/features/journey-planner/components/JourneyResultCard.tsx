@@ -34,7 +34,7 @@ export function JourneyResultCard({ journey, canSave, onSave, onStartNavigation 
   }
 
   return (
-    <div className="w-full rounded-lg border border-[#1E3A5F] bg-[#1E3A5F]/5 p-4 text-left dark:border-[#3B6EA5] dark:bg-[#3B6EA5]/10">
+    <div className="w-full rounded-lg border border-accent bg-accent/5 p-4 text-left">
       <div className="flex items-start justify-between gap-3">
         <span className="text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
           {formatDuration(journey.durationSeconds)}
@@ -47,10 +47,10 @@ export function JourneyResultCard({ journey, canSave, onSave, onStartNavigation 
               onClick={handleSave}
               disabled={saveState !== 'idle'}
               aria-label={saveState === 'saved' ? 'Itinéraire sauvegardé' : 'Sauvegarder cet itinéraire'}
-              className="shrink-0 rounded-full p-1.5 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-[#1E3A5F] disabled:hover:bg-transparent dark:hover:bg-zinc-800 dark:hover:text-[#3B6EA5]"
+              className="shrink-0 rounded-full p-1.5 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-accent disabled:hover:bg-transparent dark:hover:bg-zinc-800"
             >
               {saveState === 'saved' ? (
-                <Check size={16} weight="bold" className="text-[#1E3A5F] dark:text-[#3B6EA5]" />
+                <Check size={16} weight="bold" className="text-accent" />
               ) : (
                 <BookmarkSimple size={16} weight={saveState === 'saving' ? 'fill' : 'regular'} />
               )}
@@ -68,7 +68,7 @@ export function JourneyResultCard({ journey, canSave, onSave, onStartNavigation 
       <button
         type="button"
         onClick={onStartNavigation}
-        className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-[#1E3A5F] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#16293F] dark:bg-[#3B6EA5] dark:hover:bg-[#4E82BA]"
+        className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-hover"
       >
         <NavigationArrow size={16} weight="bold" />
         Démarrer l&apos;itinéraire

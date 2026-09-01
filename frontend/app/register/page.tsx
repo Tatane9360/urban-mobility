@@ -14,7 +14,7 @@ export default function RegisterPage() {
       footer={
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
           Déjà un compte ?{' '}
-          <Link href="/login" className="font-medium text-[#1E3A5F] hover:underline dark:text-[#3B6EA5]">
+          <Link href="/login" className="font-medium text-accent hover:underline">
             Se connecter
           </Link>
         </p>
