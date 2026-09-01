@@ -72,16 +72,24 @@ export function ModePicker({ journeys, selectedIndex, onSelect }: ModePickerProp
             type="button"
             disabled={!available}
             onClick={() => available && onSelect(bestIndex)}
+            aria-label={
+              available
+                ? `${label} — ${formatDuration(journeys[bestIndex].durationSeconds)}`
+                : `${label} — aucun itinéraire`
+            }
             className={`flex flex-1 flex-col items-center gap-1 rounded-md px-2 py-1.5 text-xs transition-colors ${
               active
-                ? 'bg-[#1E3A5F] text-white dark:bg-[#3B6EA5]'
+                ? 'bg-accent text-white'
                 : available
                   ? 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'
                   : 'cursor-not-allowed text-zinc-300 dark:text-zinc-700'
             }`}
           >
-            <Icon size={18} weight="bold" />
-            <span className="font-medium">{available ? formatDuration(journeys[bestIndex].durationSeconds) : '—'}</span>
+            <Icon size={18} weight="bold" aria-hidden="true" />
+            <span className="font-medium">{label}</span>
+            <span className={available ? undefined : 'opacity-60'}>
+              {available ? formatDuration(journeys[bestIndex].durationSeconds) : '—'}
+            </span>
           </button>
         );
       })}
