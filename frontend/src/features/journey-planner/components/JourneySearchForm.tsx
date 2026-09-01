@@ -3,6 +3,7 @@
 import { useId, useState } from 'react';
 import { ArrowsDownUp, Clock, MagnifyingGlass } from '@phosphor-icons/react/dist/ssr';
 import { AddressInput } from './AddressInput';
+import { geocode } from '../api/geocode';
 import type { JourneyPoint, JourneySortCriterion, MapPickTarget } from '../types';
 
 interface JourneySearchFormProps {
@@ -38,15 +39,60 @@ export function JourneySearchForm({
   // ponytail: empty means "maintenant" — no clock state to keep in sync, and
   // the request simply omits departureTime so the backend defaults to now.
   const [departureTime, setDepartureTime] = useState('');
+  // Text typed into each field but not resolved to a point by clicking a
+  // suggestion. Submitting geocodes it rather than refusing silently.
+  const [queries, setQueries] = useState({ origin: '', destination: '' });
+  const [fieldErrors, setFieldErrors] = useState<{ origin: string | null; destination: string | null }>({
+    origin: null,
+    destination: null,
+  });
+  const [resolving, setResolving] = useState(false);
 
-  const canSearch = origin !== null && destination !== null;
+  // Resolve a field the user typed but never picked from the list. Returns
+  // null when there is nothing usable, and records why.
+  async function resolvePoint(
+    field: 'origin' | 'destination',
+    point: JourneyPoint | null,
+  ): Promise<JourneyPoint | null> {
+    if (point) return point;
+    const query = queries[field].trim();
+    if (!query) {
+      setFieldErrors((e) => ({ ...e, [field]: 'Renseignez une adresse.' }));
+      return null;
+    }
+    try {
+      const [best] = await geocode(query);
+      if (!best) {
+        setFieldErrors((e) => ({ ...e, [field]: 'Adresse introuvable. Précisez-la ou choisissez une suggestion.' }));
+        return null;
+      }
+      return { coordinates: { lat: best.lat, lon: best.lon } };
+    } catch {
+      setFieldErrors((e) => ({ ...e, [field]: "Impossible de vérifier cette adresse pour le moment." }));
+      return null;
+    }
+  }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!origin || !destination) return;
-    // datetime-local has no offset, so read it against the browser's clock and
-    // send an absolute instant the backend can't misread.
-    onSearch(origin, destination, departureTime ? new Date(departureTime).toISOString() : undefined);
+    if (resolving) return;
+    setFieldErrors({ origin: null, destination: null });
+    setResolving(true);
+    try {
+      const [from, to] = await Promise.all([
+        resolvePoint('origin', origin),
+        resolvePoint('destination', destination),
+      ]);
+      if (!from || !to) return;
+      // Keep the resolved points so a retry does not geocode twice.
+      if (!origin) onOriginChange(from);
+      if (!destination) onDestinationChange(to);
+      // datetime-local has no offset, so read it against the browser's clock and
+      // send an absolute instant the backend can't misread.
+      onSearch(from, to, departureTime ? new Date(departureTime).toISOString() : undefined);
+    } finally {
+      setResolving(false);
+    }
   }
 
   return (
@@ -62,6 +108,11 @@ export function JourneySearchForm({
         picking={pickTarget === 'origin'}
         onTogglePick={() => onPickTargetChange(pickTarget === 'origin' ? null : 'origin')}
         pickedLabel={pickedLabels.origin}
+        onQueryChange={(q) => {
+          setQueries((s) => ({ ...s, origin: q }));
+          setFieldErrors((e) => (e.origin ? { ...e, origin: null } : e));
+        }}
+        error={fieldErrors.origin}
       />
       <AddressInput
         label="Arrivée"
@@ -70,6 +121,11 @@ export function JourneySearchForm({
         picking={pickTarget === 'destination'}
         onTogglePick={() => onPickTargetChange(pickTarget === 'destination' ? null : 'destination')}
         pickedLabel={pickedLabels.destination}
+        onQueryChange={(q) => {
+          setQueries((s) => ({ ...s, destination: q }));
+          setFieldErrors((e) => (e.destination ? { ...e, destination: null } : e));
+        }}
+        error={fieldErrors.destination}
       />
 
       <div>
@@ -79,7 +135,7 @@ export function JourneySearchForm({
         >
           Heure de départ
         </label>
-        <div className="flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 focus-within:border-[#1E3A5F] dark:border-zinc-800 dark:bg-zinc-900 dark:focus-within:border-[#3B6EA5]">
+        <div className="flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 focus-within:border-accent dark:border-zinc-800 dark:bg-zinc-900">
           <Clock className="shrink-0 text-zinc-400" size={18} />
           <input
             id={departureId}
@@ -105,20 +161,22 @@ export function JourneySearchForm({
             id="sort-criterion"
             value={sort}
             onChange={(e) => onSortChange(e.target.value as JourneySortCriterion)}
-            className="rounded-md border border-zinc-200 bg-transparent py-1 pl-2 pr-6 text-sm text-zinc-700 outline-none focus:border-[#1E3A5F] dark:border-zinc-800 dark:text-zinc-300 dark:focus:border-[#3B6EA5]"
+            className="rounded-md border border-zinc-200 bg-transparent py-1 pl-2 pr-6 text-sm text-zinc-700 outline-none focus:border-accent dark:border-zinc-800 dark:text-zinc-300"
           >
             <option value="duration">Plus rapide</option>
             <option value="carbon">Plus écologique</option>
           </select>
         </div>
 
+        {/* Never disabled on missing points: submitting resolves what was
+            typed, and says which field is at fault when it cannot. */}
         <button
           type="submit"
-          disabled={!canSearch || loading}
-          className="flex h-10 items-center gap-2 rounded-lg bg-[#1E3A5F] px-4 text-sm font-medium text-white transition-colors hover:bg-[#16293F] disabled:cursor-not-allowed disabled:opacity-40 dark:bg-[#3B6EA5] dark:hover:bg-[#4E82BA]"
+          disabled={loading || resolving}
+          className="flex h-10 items-center gap-2 rounded-lg bg-accent px-4 text-sm font-medium text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-40"
         >
           <MagnifyingGlass size={16} weight="bold" />
-          {loading ? 'Recherche…' : 'Rechercher'}
+          {loading || resolving ? 'Recherche…' : 'Rechercher'}
         </button>
       </div>
     </form>

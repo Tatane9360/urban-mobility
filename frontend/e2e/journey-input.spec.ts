@@ -44,8 +44,8 @@ async function mockApi(page: Page): Promise<() => Request> {
 }
 
 async function fillViaGeocoder(page: Page, label: string) {
-  await page.getByLabel(label, { exact: true }).fill('Comédie');
-  await page.getByRole('button', { name: SUGGESTION.displayName }).click();
+  await page.getByRole('combobox', { name: label }).fill('Comédie');
+  await page.getByRole('option', { name: SUGGESTION.displayName }).click();
 }
 
 test('sends the chosen departure time in the POST /journeys body', async ({ page }) => {
@@ -97,7 +97,7 @@ test('fills the origin from a click on the map', async ({ page }) => {
   await clickMap(page);
 
   // The picked point is labelled by its coordinates (no reverse geocoding).
-  await expect(page.getByLabel('Départ', { exact: true })).toHaveValue(/^4[0-9.]+, [0-9.]+$/);
+  await expect(page.getByRole('combobox', { name: 'Départ' })).toHaveValue(/^4[0-9.]+, [0-9.]+$/);
   await expect(page.getByText('Cliquez pour choisir le départ')).toBeHidden();
 
   await fillViaGeocoder(page, 'Arrivée');
@@ -119,7 +119,7 @@ test('fills the destination from a click on the map', async ({ page }) => {
   await expect(page.getByText("Cliquez pour choisir l'arrivée")).toBeVisible();
   await clickMap(page);
 
-  await expect(page.getByLabel('Arrivée', { exact: true })).toHaveValue(/^4[0-9.]+, [0-9.]+$/);
+  await expect(page.getByRole('combobox', { name: 'Arrivée' })).toHaveValue(/^4[0-9.]+, [0-9.]+$/);
 
   await page.getByRole('button', { name: 'Rechercher' }).click();
   await expect(page.getByText('230 g CO₂e')).toBeVisible();
@@ -144,5 +144,79 @@ test('cancels pick mode without selecting a point', async ({ page }) => {
   await expect(pickOrigin).toHaveAttribute('aria-pressed', 'false');
   // Mode off: a click on the map must no longer fill the field.
   await clickMap(page);
-  await expect(page.getByLabel('Départ', { exact: true })).toHaveValue('');
+  await expect(page.getByRole('combobox', { name: 'Départ' })).toHaveValue('');
+});
+
+// The sort criterion is the backend's: it ranks preferred modes first, then
+// applies duration/carbon. Re-sorting client-side would drop that ranking, so
+// changing the select has to re-query — otherwise the control silently lies.
+test('re-queries with the new criterion when the sort changes', async ({ page }) => {
+  const bodies: unknown[] = [];
+  await page.route('**/geocode*', (route) => route.fulfill({ json: [SUGGESTION] }));
+  await page.route('**/journeys', async (route) => {
+    bodies.push(route.request().postDataJSON());
+    await route.fulfill({ json: [MOCK_JOURNEY] });
+  });
+
+  await page.goto('/');
+  await fillViaGeocoder(page, 'Départ');
+  await fillViaGeocoder(page, 'Arrivée');
+  await page.getByRole('button', { name: 'Rechercher' }).click();
+  await expect.poll(() => bodies.length).toBe(1);
+  expect(bodies[0]).toMatchObject({ sort: 'duration' });
+
+  await page.getByLabel('Trier les itinéraires par').selectOption('carbon');
+
+  await expect.poll(() => bodies.length).toBe(2);
+  expect(bodies[1]).toMatchObject({ sort: 'carbon' });
+});
+
+// Regression guard: a sort change replays the search WITHOUT resetting
+// selectedIndex, so when the replay returns fewer results the old index is out
+// of range and the panel used to render nothing at all.
+test('keeps showing a result when the sort replay returns fewer results', async ({ page }) => {
+  let calls = 0;
+  await page.route('**/geocode*', (route) => route.fulfill({ json: [SUGGESTION] }));
+  await page.route('**/journeys', (route) => {
+    calls++;
+    return route.fulfill({
+      json: calls === 1 ? [MOCK_JOURNEY, MOCK_JOURNEY, MOCK_JOURNEY] : [MOCK_JOURNEY],
+    });
+  });
+
+  await page.goto('/');
+  await fillViaGeocoder(page, 'Départ');
+  await fillViaGeocoder(page, 'Arrivée');
+  await page.getByRole('button', { name: 'Rechercher' }).click();
+
+  const cta = page.getByRole('button', { name: /Démarrer/ });
+  await expect(cta).toBeVisible();
+
+  // Select the last of the three, leaving selectedIndex at 2.
+  await page.getByRole('region', { name: 'Autres itinéraires' }).getByRole('button').last().click();
+
+  await page.getByLabel('Trier les itinéraires par').selectOption('carbon');
+  await expect.poll(() => calls).toBe(2);
+
+  // The replay returned one result: index 2 no longer exists, and the panel
+  // must fall back to the first rather than go blank.
+  await expect(cta).toBeVisible();
+});
+
+// A guest has no history and no profile, so neither failure state may point
+// them at one (PRD §45).
+test('offers a guest no logged-in-only escape hatch when the search fails', async ({ page }) => {
+  await page.route('**/geocode*', (route) => route.fulfill({ json: [SUGGESTION] }));
+  await page.route('**/journeys', (route) => route.abort('failed'));
+
+  await page.goto('/');
+  await fillViaGeocoder(page, 'Départ');
+  await fillViaGeocoder(page, 'Arrivée');
+  await page.getByRole('button', { name: 'Rechercher' }).click();
+
+  // Scoped: the per-field validation errors are alerts too.
+  const alert = page.getByRole('alert').filter({ hasText: /itinéraire/ });
+  await expect(alert).toBeVisible();
+  await expect(alert.getByRole('link')).toHaveAttribute('href', '/register');
+  await expect(alert.getByRole('link', { name: /itinéraires enregistrés/ })).toHaveCount(0);
 });

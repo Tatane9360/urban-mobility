@@ -1,3 +1,5 @@
+import Link from 'next/link';
+import { ArrowClockwise } from '@phosphor-icons/react/dist/ssr';
 import { JourneyResultCard } from './JourneyResultCard';
 import { TransportMode, type Journey } from '../types';
 
@@ -11,6 +13,8 @@ interface JourneyResultsListProps {
   canSave: boolean;
   onSaveJourney?: (journey: Journey) => Promise<void>;
   onStartNavigation: (journey: Journey) => void;
+  // Replays the last search.
+  onRetry?: () => void;
 }
 
 function ResultSkeleton() {
@@ -35,6 +39,7 @@ export function JourneyResultsList({
   canSave,
   onSaveJourney,
   onStartNavigation,
+  onRetry,
 }: JourneyResultsListProps) {
   if (loading) {
     return (
@@ -47,17 +52,56 @@ export function JourneyResultsList({
 
   if (error) {
     return (
-      <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400">
-        {error}
-      </p>
+      <div
+        role="alert"
+        className="flex flex-col gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400"
+      >
+        <p>{error}</p>
+        {/* An error without a way out is a dead end, and on mobile a dropped
+            network is the normal case, not the exception. */}
+        <div className="flex flex-wrap items-center gap-2">
+          {onRetry && (
+            <button
+              type="button"
+              onClick={onRetry}
+              className="flex items-center gap-1.5 rounded-lg bg-red-700 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-red-800 dark:bg-red-900 dark:hover:bg-red-800"
+            >
+              <ArrowClockwise size={14} weight="bold" />
+              Réessayer
+            </button>
+          )}
+          {/* A guest has no history and no profile (PRD §45), so the escape
+              hatch has to differ — offering one that leads nowhere is worse
+              than offering none. */}
+          <Link
+            href={canSave ? '/history' : '/register'}
+            className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-700 transition-colors hover:bg-red-100 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-950/50"
+          >
+            {canSave ? 'Voir mes itinéraires enregistrés' : 'Créer un compte pour enregistrer vos trajets'}
+          </Link>
+        </div>
+      </div>
     );
   }
 
   if (hasSearched && journeys.length === 0) {
     return (
-      <p className="rounded-lg border border-zinc-200 bg-white p-4 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
-        Aucun itinéraire trouvé pour ce trajet.
-      </p>
+      <div className="flex flex-col gap-2 rounded-lg border border-zinc-200 bg-white p-4 text-sm dark:border-zinc-800 dark:bg-zinc-900">
+        <p className="font-medium text-zinc-900 dark:text-zinc-50">
+          Aucun itinéraire trouvé pour ce trajet.
+        </p>
+        {/* Three things that actually change the outcome, rather than a
+            cul-de-sac the user has to guess their way out of. */}
+        <ul className="list-disc pl-5 text-zinc-600 dark:text-zinc-400">
+          <li>Vérifiez les adresses de départ et d&apos;arrivée.</li>
+          <li>Essayez une autre heure de départ : le réseau circule moins la nuit.</li>
+          {canSave ? (
+            <li>Élargissez vos modes de transport préférés depuis votre profil.</li>
+          ) : (
+            <li>Rapprochez le départ ou l&apos;arrivée d&apos;un arrêt de tram ou de bus.</li>
+          )}
+        </ul>
+      </div>
     );
   }
 
@@ -69,7 +113,10 @@ export function JourneyResultsList({
     );
   }
 
-  const journey = selectedIndex !== null ? journeys[selectedIndex] : undefined;
+  // Never bail to a blank panel: a search replayed by a sort change does not
+  // reset selectedIndex, so a stale index can be null OR past the end of a
+  // shorter result set. Both fall back to the first (best-ranked) result.
+  const journey = journeys[selectedIndex ?? 0] ?? journeys[0];
   if (!journey) return null;
 
   // The ModePicker only exposes the fastest candidate per mode, so without
@@ -86,6 +133,13 @@ export function JourneyResultsList({
 
   return (
     <div className="flex flex-col gap-3">
+      {/* The results swap in without moving focus, so a screen reader user
+          would otherwise get no signal that the search finished. */}
+      <p role="status" className="sr-only">
+        {journeys.length === 1
+          ? '1 itinéraire trouvé.'
+          : `${journeys.length} itinéraires trouvés.`}
+      </p>
       <JourneyResultCard
         journey={journey}
         canSave={canSave}
@@ -103,7 +157,7 @@ export function JourneyResultsList({
               key={index}
               type="button"
               onClick={() => onSelect(index)}
-              className="flex items-center justify-between rounded-lg border border-zinc-200 bg-white px-3 py-2 text-left text-sm transition-colors hover:border-[#1E3A5F] dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-[#3B6EA5]"
+              className="flex items-center justify-between rounded-lg border border-zinc-200 bg-white px-3 py-2 text-left text-sm transition-colors hover:border-accent dark:border-zinc-800 dark:bg-zinc-900"
             >
               <span className="text-zinc-900 dark:text-zinc-50">
                 {formatDuration(candidate.durationSeconds)}

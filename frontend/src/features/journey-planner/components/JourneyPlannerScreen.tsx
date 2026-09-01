@@ -29,7 +29,7 @@ const JourneyMap = dynamic(() => import('./JourneyMap').then((m) => m.JourneyMap
 
 export function JourneyPlannerScreen() {
   const { token } = useAuth();
-  const { journeys, loading, error, sort, setSort, search } = useJourneyPlanner();
+  const { journeys, loading, error, sort, setSort, search, retry } = useJourneyPlanner();
   const [hasSearched, setHasSearched] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [mapExpanded, setMapExpanded] = useState(false);
@@ -167,6 +167,7 @@ export function JourneyPlannerScreen() {
           canSave={token !== null}
           onSaveJourney={token ? handleSaveJourney : undefined}
           onStartNavigation={handleStartNavigation}
+          onRetry={retry}
         />
       </div>
     </div>
