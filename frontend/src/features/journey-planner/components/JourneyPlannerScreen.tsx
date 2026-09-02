@@ -10,6 +10,7 @@ import { ModePicker } from './ModePicker';
 import { NavigationOverlay } from './NavigationOverlay';
 import { useJourneyPlanner } from '../hooks/useJourneyPlanner';
 import { useAuth } from '../../auth/hooks/useAuth';
+import { useProfile } from '../../profile/hooks/useProfile';
 import { saveJourney } from '../api/save-journey';
 import { buildNavigationSteps } from '../navigation-steps';
 import { formatCoordinates } from '../format-coordinates';
@@ -29,6 +30,7 @@ const JourneyMap = dynamic(() => import('./JourneyMap').then((m) => m.JourneyMap
 
 export function JourneyPlannerScreen() {
   const { token } = useAuth();
+  const { profile } = useProfile();
   const { journeys, loading, error, sort, setSort, search, retry } = useJourneyPlanner();
   const [hasSearched, setHasSearched] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
@@ -163,6 +165,7 @@ export function JourneyPlannerScreen() {
           onDestinationChange={(point) => setPointFor('destination', point)}
           pickedLabels={pickedLabels}
           onSwap={swapEndpoints}
+          favoriteAddresses={profile?.favoriteAddresses}
         />
         {hasSearched && !loading && (
           <ModePicker journeys={journeys} selectedIndex={selectedIndex} onSelect={setSelectedIndex} />

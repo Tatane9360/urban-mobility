@@ -1,10 +1,11 @@
 'use client';
 
 import { useId, useState } from 'react';
-import { ArrowsDownUp, ArrowsClockwise, Clock, MagnifyingGlass } from '@phosphor-icons/react/dist/ssr';
+import { ArrowsDownUp, ArrowUp, ArrowDown, Clock, MagnifyingGlass, MapPin } from '@phosphor-icons/react/dist/ssr';
 import { AddressInput } from './AddressInput';
 import { geocode } from '../api/geocode';
 import type { JourneyPoint, JourneySortCriterion, MapPickTarget } from '../types';
+import type { FavoriteAddress } from '../../profile/types';
 
 interface JourneySearchFormProps {
   sort: JourneySortCriterion;
@@ -22,6 +23,9 @@ interface JourneySearchFormProps {
   pickedLabels: { origin: string | null; destination: string | null };
   // Swaps the two points and their map-pick labels, which the screen owns.
   onSwap: () => void;
+  // The signed-in user's saved addresses, offered as quick picks in both
+  // fields. Absent (or empty) for a guest — AddressInput defaults it to [].
+  favoriteAddresses?: FavoriteAddress[];
 }
 
 export function JourneySearchForm({
@@ -37,6 +41,7 @@ export function JourneySearchForm({
   onDestinationChange,
   pickedLabels,
   onSwap,
+  favoriteAddresses,
 }: JourneySearchFormProps) {
   const departureId = useId();
   // ponytail: empty means "maintenant" — no clock state to keep in sync, and
@@ -115,48 +120,72 @@ export function JourneySearchForm({
       onSubmit={handleSubmit}
       className="flex flex-col gap-4 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900"
     >
-      <div className="relative flex flex-col gap-4">
-        <AddressInput
-          key={`origin-${swapCount}`}
-          label="Départ"
-          value={origin}
-          onChange={onOriginChange}
-          allowGeolocation
-          picking={pickTarget === 'origin'}
-          onTogglePick={() => onPickTargetChange(pickTarget === 'origin' ? null : 'origin')}
-          pickedLabel={pickedLabels.origin}
-          initialQuery={queries.origin}
-          onQueryChange={(q) => {
-            setQueries((s) => ({ ...s, origin: q }));
-            setFieldErrors((e) => (e.origin ? { ...e, origin: null } : e));
-          }}
-          error={fieldErrors.origin}
-        />
-        <AddressInput
-          key={`destination-${swapCount}`}
-          label="Arrivée"
-          value={destination}
-          onChange={onDestinationChange}
-          picking={pickTarget === 'destination'}
-          onTogglePick={() => onPickTargetChange(pickTarget === 'destination' ? null : 'destination')}
-          pickedLabel={pickedLabels.destination}
-          initialQuery={queries.destination}
-          onQueryChange={(q) => {
-            setQueries((s) => ({ ...s, destination: q }));
-            setFieldErrors((e) => (e.destination ? { ...e, destination: null } : e));
-          }}
-          error={fieldErrors.destination}
-        />
+      <div className="relative flex items-stretch gap-3">
+        {/* Route rail: origin dot, a dotted thread down to the destination
+            pin — the same visual grammar as a stop list, so the two fields
+            read as one trip rather than two unrelated inputs. */}
+        <div className="flex w-4 shrink-0 flex-col items-center pt-[1.375rem] pb-[1.375rem]" aria-hidden="true">
+          <span className="h-2.5 w-2.5 shrink-0 rounded-full border-2 border-zinc-400 dark:border-zinc-500" />
+          <span className="my-1 w-px flex-1 border-l-2 border-dotted border-zinc-300 dark:border-zinc-700" />
+          <MapPin size={16} weight="fill" className="shrink-0 text-accent" />
+        </div>
 
-        {/* Sits on the divider between the two fields, where a rider expects
-            it. Right-aligned so it never covers the inputs' own buttons. */}
+        <div className="flex flex-1 flex-col gap-4">
+          <AddressInput
+            key={`origin-${swapCount}`}
+            label="Départ"
+            value={origin}
+            onChange={onOriginChange}
+            allowGeolocation
+            picking={pickTarget === 'origin'}
+            onTogglePick={() => onPickTargetChange(pickTarget === 'origin' ? null : 'origin')}
+            pickedLabel={pickedLabels.origin}
+            favorites={favoriteAddresses}
+            initialQuery={queries.origin}
+            onQueryChange={(q) => {
+              setQueries((s) => ({ ...s, origin: q }));
+              setFieldErrors((e) => (e.origin ? { ...e, origin: null } : e));
+            }}
+            error={fieldErrors.origin}
+          />
+          <AddressInput
+            key={`destination-${swapCount}`}
+            label="Arrivée"
+            value={destination}
+            onChange={onDestinationChange}
+            picking={pickTarget === 'destination'}
+            onTogglePick={() => onPickTargetChange(pickTarget === 'destination' ? null : 'destination')}
+            pickedLabel={pickedLabels.destination}
+            favorites={favoriteAddresses}
+            initialQuery={queries.destination}
+            onQueryChange={(q) => {
+              setQueries((s) => ({ ...s, destination: q }));
+              setFieldErrors((e) => (e.destination ? { ...e, destination: null } : e));
+            }}
+            error={fieldErrors.destination}
+          />
+        </div>
+
+        {/* Off to the side rather than on the divider, so it never sits over
+            either field's own trailing buttons. */}
         <button
           type="button"
           onClick={handleSwap}
           aria-label="Inverser le départ et l'arrivée"
-          className="absolute right-0 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-600 shadow-sm transition-colors hover:border-accent hover:text-accent dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400"
+          className="flex h-9 w-9 shrink-0 items-center justify-center self-center rounded-full border border-zinc-200 bg-white text-zinc-600 shadow-sm transition-colors hover:border-accent hover:text-accent dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400"
         >
-          <ArrowsClockwise size={16} weight="bold" className="rotate-90" />
+          <span className="relative block h-4 w-4 overflow-hidden">
+            <ArrowUp
+              size={16}
+              weight="bold"
+              className={`absolute inset-0 transition-all duration-200 ${swapCount % 2 === 0 ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}
+            />
+            <ArrowDown
+              size={16}
+              weight="bold"
+              className={`absolute inset-0 transition-all duration-200 ${swapCount % 2 === 0 ? '-translate-y-4 opacity-0' : 'translate-y-0 opacity-100'}`}
+            />
+          </span>
         </button>
       </div>
 
@@ -167,7 +196,7 @@ export function JourneySearchForm({
         >
           Heure de départ
         </label>
-        <div className="flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 focus-within:border-accent dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 transition-colors focus-within:border-accent dark:border-zinc-800 dark:bg-zinc-900">
           <Clock className="shrink-0 text-zinc-400" size={18} />
           <input
             id={departureId}
@@ -175,7 +204,10 @@ export function JourneySearchForm({
             value={departureTime}
             aria-describedby={`${departureId}-hint`}
             onChange={(e) => setDepartureTime(e.target.value)}
-            className="h-11 w-full bg-transparent text-sm text-zinc-900 outline-none dark:text-zinc-50"
+            // The calendar/time popup is browser-rendered, not ours to
+            // restyle — color-scheme is the one lever that keeps it legible,
+            // so the dark picker doesn't render dark text on a dark sheet.
+            className="h-11 w-full bg-transparent text-sm text-zinc-900 outline-none [color-scheme:light] dark:text-zinc-50 dark:[color-scheme:dark] [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:rounded [&::-webkit-calendar-picker-indicator]:p-1 [&::-webkit-calendar-picker-indicator]:opacity-60 [&::-webkit-calendar-picker-indicator]:transition-opacity hover:[&::-webkit-calendar-picker-indicator]:opacity-100"
           />
         </div>
         <p id={`${departureId}-hint`} className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
