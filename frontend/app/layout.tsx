@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AuthProvider } from "@/src/features/auth/context/AuthContext";
 import { AppHeader } from "@/src/components/AppHeader";
+import { MobileTabBar } from "@/src/components/MobileTabBar";
 import { ServiceWorkerRegistration } from "@/src/components/ServiceWorkerRegistration";
 import "./globals.css";
 
@@ -53,9 +54,13 @@ export default function RootLayout({
         </a>
         <AuthProvider>
           <AppHeader />
-          <main id="contenu" className="flex flex-1 flex-col">
+          {/* pb-16 clears MobileTabBar's own height (py-2.5 content + icon +
+              label ≈ 4rem) so the last bit of page content isn't hidden
+              under it; lg:pb-0 since the bar itself is lg:hidden. */}
+          <main id="contenu" className="flex flex-1 flex-col pb-16 lg:pb-0">
             {children}
           </main>
+          <MobileTabBar />
         </AuthProvider>
       </body>
     </html>
