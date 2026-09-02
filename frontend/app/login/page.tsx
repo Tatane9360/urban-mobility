@@ -8,6 +8,7 @@ export default function LoginPage() {
   return (
     <AuthForm
       title="Connexion"
+      subtitle="Retrouvez vos adresses favorites, votre historique de trajets et votre empreinte carbone."
       submitLabel="Se connecter"
       onSubmit={login}
       footer={

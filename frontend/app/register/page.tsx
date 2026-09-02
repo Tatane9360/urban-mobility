@@ -8,6 +8,7 @@ export default function RegisterPage() {
   return (
     <AuthForm
       title="Créer un compte"
+      subtitle="Sauvegardez vos adresses favorites et vos trajets, et suivez votre empreinte carbone au fil du temps."
       submitLabel="Créer mon compte"
       minPasswordLength={8}
       onSubmit={register}
