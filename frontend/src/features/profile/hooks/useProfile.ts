@@ -15,7 +15,6 @@ export function useProfile() {
   // (save). Both now have somewhere to land.
   const [loadError, setLoadError] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
@@ -40,11 +39,9 @@ export function useProfile() {
     if (!token) return;
     setSaving(true);
     setSaveError(null);
-    setSaved(false);
     try {
       const updated = await updateProfile(token, update);
       setProfile(updated);
-      setSaved(true);
     } catch (err) {
       setSaveError(
         err instanceof ApiError
@@ -70,7 +67,6 @@ export function useProfile() {
     loadError,
     saving,
     saveError,
-    saved,
     save,
     retryLoad,
   };

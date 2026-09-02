@@ -12,7 +12,7 @@ import { GeolocationConsentSection } from '@/src/features/profile/components/Geo
 export default function ProfilePage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
-  const { profile, loading: profileLoading, loadError, saving, saveError, saved, save, retryLoad } =
+  const { profile, loading: profileLoading, loadError, saving, saveError, save, retryLoad } =
     useProfile();
 
   // A deleted account clears the token on its way to the planner; without this
@@ -77,7 +77,7 @@ export default function ProfilePage() {
         Mon profil
       </h1>
       <p className="mb-6 text-sm text-zinc-600 dark:text-zinc-400">{user?.email}</p>
-      <ProfileForm profile={profile} saving={saving} saved={saved} error={saveError} onSave={save} />
+      <ProfileForm profile={profile} saving={saving} error={saveError} onSave={save} />
       <GeolocationConsentSection />
       {user && <UserDataSection email={user.email} onLeaving={() => setLeaving(true)} />}
     </div>

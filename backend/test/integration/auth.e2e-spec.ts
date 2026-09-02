@@ -266,7 +266,7 @@ describe('Auth (e2e)', () => {
         .set('Authorization', `Bearer ${token}`)
         .send({
           preferredModes: ['Tram'],
-          favoriteAddresses: ['Place de la Comedie, Montpellier'],
+          favoriteAddresses: [{ label: 'Centre-ville', address: 'Place de la Comedie, Montpellier' }],
         })
         .expect(200);
       await saveJourney(token);
@@ -280,14 +280,14 @@ describe('Auth (e2e)', () => {
         user: { email: string };
         mobilityProfile: {
           preferredModes: string[];
-          favoriteAddresses: string[];
+          favoriteAddresses: { label: string; address: string }[];
         };
         savedJourneys: Array<{ durationSeconds: number }>;
       };
       expect(body.user.email).toBe('mia@example.com');
       expect(body.mobilityProfile.preferredModes).toEqual(['Tram']);
       expect(body.mobilityProfile.favoriteAddresses).toEqual([
-        'Place de la Comedie, Montpellier',
+        { label: 'Centre-ville', address: 'Place de la Comedie, Montpellier' },
       ]);
       expect(body.savedJourneys).toHaveLength(1);
       expect(body.savedJourneys[0].durationSeconds).toBe(600);

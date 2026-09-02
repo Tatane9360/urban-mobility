@@ -1,5 +1,6 @@
 import { Column, Entity, OneToOne, PrimaryGeneratedColumn } from 'typeorm';
 import { User } from './user.entity';
+import { FavoriteAddress } from '../../profile/favorite-address';
 
 @Entity('mobility_profile')
 export class MobilityProfile {
@@ -18,7 +19,7 @@ export class MobilityProfile {
   preferredModes!: string[];
 
   @Column('jsonb')
-  favoriteAddresses!: string[];
+  favoriteAddresses!: FavoriteAddress[];
 
   @Column('boolean', { default: false })
   pmrAccessibility!: boolean;

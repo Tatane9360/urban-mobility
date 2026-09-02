@@ -1,6 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { TransportMode } from '../../common/transport-mode.enum';
 import { MobilityProfile } from '../../auth/entities/mobility-profile.entity';
+import { FavoriteAddress } from '../favorite-address';
+import { FavoriteAddressDto } from './update-profile.dto';
 
 // ponytail: constructor takes this narrow shape, not MobilityProfile itself,
 // so it can only ever copy these 3 fields — a future `Object.assign(this,
@@ -8,7 +10,7 @@ import { MobilityProfile } from '../../auth/entities/mobility-profile.entity';
 // leaking User fields (passwordHash) through the `user` relation.
 interface ProfileFields {
   preferredModes: TransportMode[];
-  favoriteAddresses: string[];
+  favoriteAddresses: FavoriteAddress[];
   pmrAccessibility: boolean;
 }
 
@@ -22,10 +24,10 @@ export class ProfileResponseDto {
   preferredModes: TransportMode[];
 
   @ApiProperty({
-    description: 'Favorite addresses',
-    example: ['Place de la Comédie, Montpellier'],
+    description: 'Favorite addresses, each with a short user-chosen label',
+    type: [FavoriteAddressDto],
   })
-  favoriteAddresses: string[];
+  favoriteAddresses: FavoriteAddress[];
 
   @ApiProperty({
     description: 'PMR (reduced mobility) accessibility flag',

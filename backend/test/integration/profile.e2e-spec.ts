@@ -74,14 +74,14 @@ describe('Profile (e2e)', () => {
         .set('Authorization', `Bearer ${token}`)
         .send({
           preferredModes: ['Bus', 'Vélo'],
-          favoriteAddresses: ['1 rue de la Loge, Montpellier'],
+          favoriteAddresses: [{ label: 'Maison', address: '1 rue de la Loge, Montpellier' }],
           pmrAccessibility: true,
         });
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual({
         preferredModes: ['Bus', 'Vélo'],
-        favoriteAddresses: ['1 rue de la Loge, Montpellier'],
+        favoriteAddresses: [{ label: 'Maison', address: '1 rue de la Loge, Montpellier' }],
         pmrAccessibility: true,
       });
 
@@ -89,6 +89,40 @@ describe('Profile (e2e)', () => {
         .get('/profile')
         .set('Authorization', `Bearer ${token}`);
       expect(getResponse.body).toEqual(response.body);
+    });
+
+    it('rejects a favorite address missing both a label and an address', async () => {
+      const token = await registerAndGetToken('frank@example.com');
+
+      const response = await request(app.getHttpServer())
+        .patch('/profile')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ favoriteAddresses: [{}] });
+
+      expect(response.status).toBe(400);
+    });
+
+    it('accepts a legacy plain-string favorite address alongside a labelled one, upgrading it in place', async () => {
+      // Accounts that saved favorites before the {label, address} format
+      // shipped still carry plain strings in the jsonb column — a PATCH that
+      // merely edits another favorite must not 400 on those legacy entries.
+      const token = await registerAndGetToken('gina@example.com');
+
+      const response = await request(app.getHttpServer())
+        .patch('/profile')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          favoriteAddresses: [
+            'Gare de Montpellier Saint-Roch, Montpellier',
+            { label: 'Maison', address: 'Rue de la Loge, Montpellier' },
+          ],
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body.favoriteAddresses).toEqual([
+        { label: '', address: 'Gare de Montpellier Saint-Roch, Montpellier' },
+        { label: 'Maison', address: 'Rue de la Loge, Montpellier' },
+      ]);
     });
 
     it('rejects a preferred mode outside the Transport Mode domain enum', async () => {
@@ -116,7 +150,7 @@ describe('Profile (e2e)', () => {
       await request(app.getHttpServer())
         .patch('/profile')
         .set('Authorization', `Bearer ${daveToken}`)
-        .send({ favoriteAddresses: ["Dave's home"] });
+        .send({ favoriteAddresses: [{ label: 'Maison', address: "Dave's home" }] });
 
       const erinProfile = await request(app.getHttpServer())
         .get('/profile')
@@ -130,14 +164,14 @@ describe('Profile (e2e)', () => {
       await request(app.getHttpServer())
         .patch('/profile')
         .set('Authorization', `Bearer ${erinToken}`)
-        .send({ favoriteAddresses: ["Erin's home"] });
+        .send({ favoriteAddresses: [{ label: 'Maison', address: "Erin's home" }] });
 
       const daveProfile = await request(app.getHttpServer())
         .get('/profile')
         .set('Authorization', `Bearer ${daveToken}`);
       expect(daveProfile.body).toEqual({
         preferredModes: [],
-        favoriteAddresses: ["Dave's home"],
+        favoriteAddresses: [{ label: 'Maison', address: "Dave's home" }],
         pmrAccessibility: false,
       });
     });

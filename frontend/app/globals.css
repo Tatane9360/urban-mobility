@@ -30,6 +30,32 @@ body {
   color: var(--foreground);
 }
 
+/* MOTION_INTENSITY: 2 — a short fade+scale on entry, nothing decorative.
+   The reduced-motion block below already zeroes it out globally. */
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+dialog::backdrop {
+  animation: modal-backdrop-in 150ms ease-out;
+}
+
+@keyframes modal-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 /* DESIGN.md: motion is utilitarian only, and reduced-motion is non-negotiable.
    The loading skeletons animate infinitely, so this is not merely decorative. */
 @media (prefers-reduced-motion: reduce) {
