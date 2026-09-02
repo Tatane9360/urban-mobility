@@ -215,6 +215,44 @@ describe('BikeMobilityProvider', () => {
     expect(segments).toEqual([]);
   });
 
+  it('finds a station up to 1000m away, so a rider without one on their doorstep still gets Vélo offered', async () => {
+    const snapshot = snapshotWithStations([
+      {
+        // ~800m north of `corum` — outside the old 500m radius, inside the
+        // wider one a rider will walk to reach a bike.
+        stationId: '001',
+        name: 'Corum (un peu loin)',
+        lat: 43.6218,
+        lon: 3.8825,
+        bikesAvailable: 3,
+        docksAvailable: 5,
+        isRenting: true,
+      },
+      {
+        stationId: '002',
+        name: 'Odysseum',
+        lat: 43.6071,
+        lon: 3.9171,
+        bikesAvailable: 1,
+        docksAvailable: 4,
+        isRenting: true,
+      },
+    ]);
+    const provider = new BikeMobilityProvider(
+      mockGbfsService(snapshot),
+      mockOrs({ distanceMeters: 3800, durationSeconds: 770 }),
+    );
+
+    const segments = await provider.getSegments(corum, odysseum, new Date());
+
+    expect(segments).toHaveLength(1);
+    expect(segments[0].from).toEqual({
+      name: 'Corum (un peu loin)',
+      lat: 43.6218,
+      lon: 3.8825,
+    });
+  });
+
   it('returns no segment when the GBFS snapshot is not yet available', async () => {
     const provider = new BikeMobilityProvider(
       mockGbfsService(null),

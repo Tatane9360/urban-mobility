@@ -13,9 +13,11 @@ import { MobilityProvider } from './mobility-provider';
 // (see #11 for the original Haversine-only fallback).
 const BIKE_SPEED_METERS_PER_SECOND = 15000 / 3600;
 
-// ponytail: same "nearby stop" radius used for Bus/Tram stops — GBFS
-// stations are similarly spaced in urban Montpellier.
-const NEARBY_STATION_RADIUS_METERS = 500;
+// A rider without a station on their doorstep will still walk to one —
+// the planner already bridges that gap with its own Marche segment, so this
+// is a walkable radius (~12 min), not a "station right here" one like
+// Bus/Tram's 500m stop search.
+const NEARBY_STATION_RADIUS_METERS = 1000;
 
 @Injectable()
 export class BikeMobilityProvider implements MobilityProvider {
