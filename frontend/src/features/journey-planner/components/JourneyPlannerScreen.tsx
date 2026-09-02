@@ -101,7 +101,10 @@ export function JourneyPlannerScreen() {
     <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-4 p-4 lg:flex-row-reverse lg:gap-6 lg:p-6">
       <div
         className={`relative w-full shrink-0 lg:sticky lg:top-6 lg:h-[calc(100dvh-3rem)] lg:flex-1 ${
-          mapExpanded ? 'h-[calc(100dvh-2rem)]' : 'h-[38vh] min-h-[220px]'
+          // -6rem clears MobileTabBar (4rem) plus the container's own 2rem
+          // vertical padding — the bar sits fixed below this element, and
+          // without the extra room the expanded map renders half under it.
+          mapExpanded ? 'h-[calc(100dvh-6rem)]' : 'h-[38vh] min-h-[220px]'
         }`}
       >
         <JourneyMap
