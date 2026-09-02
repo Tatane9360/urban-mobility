@@ -31,8 +31,12 @@ export function GeolocationConsentSection() {
   }
 
   return (
-    <section className="mt-6 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-      <h2 className="flex items-center gap-2 text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+    // Flat, like the modes/favorites fieldsets above — a card here gave a
+    // localStorage-only, easily-reversed preference more visual weight than
+    // the sections the user actually came to manage. DESIGN.md reserves
+    // elevation for where it carries real hierarchy.
+    <section className="mt-8">
+      <h2 className="flex items-center gap-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
         <NavigationArrow size={16} weight="fill" className="text-zinc-400" />
         Géolocalisation
       </h2>

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { DownloadSimple, Warning } from '@phosphor-icons/react/dist/ssr';
+import { DownloadSimple } from '@phosphor-icons/react/dist/ssr';
 import { useAuth } from '../../auth/hooks/useAuth';
 import { deleteAccount, exportUserData } from '../api/user-data';
 
@@ -80,7 +80,8 @@ export function UserDataSection({ email, onLeaving }: { email: string; onLeaving
         </h2>
         <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
           Votre compte, vos adresses favorites et vos itinéraires sauvegardés ont été
-          définitivement effacés.
+          définitivement effacés. Vous pouvez continuer à planifier vos trajets sans compte,
+          à tout moment.
         </p>
         <button
           type="button"
@@ -131,14 +132,16 @@ export function UserDataSection({ email, onLeaving }: { email: string; onLeaving
         </p>
       )}
 
-      <div className="mt-6 rounded-lg border border-red-200 p-4 dark:border-red-900/60">
-        <h3 className="flex items-center gap-1.5 text-sm font-medium text-red-700 dark:text-red-400">
-          <Warning size={16} weight="bold" />
-          Supprimer mon compte
-        </h3>
+      {/* Sober, not alarmed: no red border wrapping the whole zone and no
+          warning-triangle icon — DESIGN.md reserves red for genuine error
+          states, not a "danger zone" decoration borrowed from generic SaaS
+          account pages. The weight comes from what the copy says, and the
+          red stays on the action itself once the user actually commits. */}
+      <div className="mt-6 border-t border-zinc-200 pt-6 dark:border-zinc-800">
+        <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-50">Supprimer mon compte</h3>
         <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-          Votre profil et tous vos itinéraires sauvegardés seront effacés. Cette action est irréversible.
-          Pensez à télécharger vos données avant de continuer.
+          Votre profil, vos adresses favorites et vos itinéraires sauvegardés seront définitivement
+          effacés — cette action est irréversible. Pensez à télécharger vos données avant de continuer.
         </p>
 
         {deleteError && (
@@ -167,8 +170,24 @@ export function UserDataSection({ email, onLeaving }: { email: string; onLeaving
               value={typedEmail}
               onChange={(e) => setTypedEmail(e.target.value)}
               autoComplete="off"
-              className="h-10 rounded-lg border border-zinc-200 bg-white px-3 text-sm text-zinc-900 outline-none focus:border-red-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-50"
+              aria-describedby={typedEmail ? 'confirm-email-hint' : undefined}
+              className="h-11 rounded-lg border border-zinc-200 bg-white px-3 text-sm text-zinc-900 outline-none focus:border-red-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-50"
             />
+            {/* Otherwise the button just silently stays disabled — the user
+                has no way to tell a typo from the feature being broken. */}
+            {typedEmail && (
+              <p
+                id="confirm-email-hint"
+                role="status"
+                className={`-mt-2 text-xs ${
+                  typedEmail === email
+                    ? 'text-zinc-500 dark:text-zinc-400'
+                    : 'text-amber-700 dark:text-amber-400'
+                }`}
+              >
+                {typedEmail === email ? 'Email confirmé.' : "Ne correspond pas encore à votre email."}
+              </p>
+            )}
             <div className="flex gap-2">
               <button
                 type="button"

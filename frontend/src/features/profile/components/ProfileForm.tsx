@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { Plus, Trash, Bicycle, PersonSimpleWalk, Train, Bus } from '@phosphor-icons/react/dist/ssr';
 import { FavoriteAddressModal } from './FavoriteAddressModal';
-import { ConfirmModal } from './ConfirmModal';
 import { TransportMode, type FavoriteAddress, type Profile } from '../types';
 
 const MODE_OPTIONS: { mode: TransportMode; label: string; icon: typeof Train }[] = [
@@ -26,7 +25,6 @@ interface ProfileFormProps {
 // for the server's response once it lands.
 export function ProfileForm({ profile, saving, error, onSave }: ProfileFormProps) {
   const [modalOpen, setModalOpen] = useState(false);
-  const [pendingRemoveIndex, setPendingRemoveIndex] = useState<number | null>(null);
 
   function toggleMode(mode: TransportMode) {
     const next = profile.preferredModes.includes(mode)
@@ -40,14 +38,13 @@ export function ProfileForm({ profile, saving, error, onSave }: ProfileFormProps
     onSave({ preferredModes: profile.preferredModes, favoriteAddresses: [...profile.favoriteAddresses, favorite] });
   }
 
-  function confirmRemove() {
-    if (pendingRemoveIndex === null) return;
-    const next = profile.favoriteAddresses.filter((_, i) => i !== pendingRemoveIndex);
-    setPendingRemoveIndex(null);
+  // Immediate, same as toggleMode and addFavorite — a removed favorite is
+  // trivially reversible (re-add it via the modal), so a confirm step here
+  // was the odd one out, not a safety feature the other two mutations lack.
+  function removeFavorite(index: number) {
+    const next = profile.favoriteAddresses.filter((_, i) => i !== index);
     onSave({ preferredModes: profile.preferredModes, favoriteAddresses: next });
   }
-
-  const pendingFavorite = pendingRemoveIndex !== null ? profile.favoriteAddresses[pendingRemoveIndex] : null;
 
   return (
     <div className="flex flex-col gap-8">
@@ -102,9 +99,9 @@ export function ProfileForm({ profile, saving, error, onSave }: ProfileFormProps
                 <button
                   type="button"
                   disabled={saving}
-                  onClick={() => setPendingRemoveIndex(index)}
+                  onClick={() => removeFavorite(index)}
                   aria-label={`Retirer ${favorite.label}`}
-                  className="shrink-0 rounded-full p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-zinc-800 dark:hover:text-red-400"
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-zinc-400 hover:bg-zinc-100 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-zinc-800 dark:hover:text-red-400"
                 >
                   <Trash size={16} />
                 </button>
@@ -128,15 +125,6 @@ export function ProfileForm({ profile, saving, error, onSave }: ProfileFormProps
           onClose={() => setModalOpen(false)}
           onAdd={addFavorite}
           takenLabels={profile.favoriteAddresses.map((f) => f.label)}
-        />
-
-        <ConfirmModal
-          open={pendingFavorite !== null}
-          title={`Retirer ${pendingFavorite?.label} ?`}
-          message={`«${pendingFavorite?.address}» sera retirée de vos adresses favorites.`}
-          confirmLabel="Retirer"
-          onConfirm={confirmRemove}
-          onCancel={() => setPendingRemoveIndex(null)}
         />
       </fieldset>
 
