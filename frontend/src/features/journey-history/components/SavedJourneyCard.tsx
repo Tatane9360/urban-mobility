@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Leaf, Trash, WarningCircle } from '@phosphor-icons/react/dist/ssr';
+import { Leaf, Trash } from '@phosphor-icons/react/dist/ssr';
 import { SegmentBadge } from '../../journey-planner/components/SegmentBadge';
 import type { SavedJourney } from '../types';
 
@@ -110,12 +110,6 @@ export function SavedJourneyCard({ journey, onDelete }: SavedJourneyCardProps) {
         </div>
       )}
 
-      {journey.degraded && (
-        <div className="mt-3 flex items-center gap-1.5 rounded-md bg-amber-50 px-2.5 py-1.5 text-xs text-amber-700 dark:bg-amber-950/40 dark:text-amber-400">
-          <WarningCircle size={14} />
-          <span>Horaires théoriques (temps réel indisponible)</span>
-        </div>
-      )}
     </div>
   );
 }

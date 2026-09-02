@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BookmarkSimple, Check, NavigationArrow, WarningCircle } from '@phosphor-icons/react/dist/ssr';
+import { BookmarkSimple, Check, NavigationArrow } from '@phosphor-icons/react/dist/ssr';
 import { SegmentBadge } from './SegmentBadge';
 import { CarbonBadge } from './CarbonBadge';
 import type { Journey } from '../types';
@@ -90,12 +90,6 @@ export function JourneyResultCard({ journey, canSave, onSave, onStartNavigation 
         Démarrer l&apos;itinéraire
       </button>
 
-      {journey.degraded && (
-        <div className="mt-3 flex items-center gap-1.5 rounded-md bg-amber-50 px-2.5 py-1.5 text-xs text-amber-700 dark:bg-amber-950/40 dark:text-amber-400">
-          <WarningCircle size={14} />
-          <span>Horaires théoriques (temps réel indisponible)</span>
-        </div>
-      )}
     </div>
   );
 }
