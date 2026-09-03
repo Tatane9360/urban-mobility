@@ -2,6 +2,7 @@
 
 import { createContext, useEffect, useState } from 'react';
 import { ApiError } from '@/src/lib/api-client';
+import { BootSplash } from '@/src/components/BootSplash';
 import { getCurrentUser } from '../api/me';
 import type { CurrentUser } from '../types';
 import { clearCachedJourneys } from '../../journey-history/offline-cache';
@@ -68,6 +69,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   return (
     <AuthContext.Provider value={{ user, token, loading: checkingStoredToken, setToken, logout }}>
       {children}
+      {/* Rendered after children, not instead of them: the app mounts and
+          paints underneath while this covers the header's half-drawn state,
+          so nothing is delayed by the splash itself. */}
+      <BootSplash done={!checkingStoredToken} />
     </AuthContext.Provider>
   );
 }
