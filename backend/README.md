@@ -69,17 +69,18 @@ Le déploiement doit appliquer les migrations **avant** de démarrer l'API.
 Dans les settings du service Render :
 
 - **Build Command** : `pnpm install && pnpm build`
-- **Pre-Deploy Command** : `pnpm migration:run:prod`
-- **Start Command** : `pnpm start:prod`
+- **Start Command** : `pnpm migration:run:prod && pnpm start:prod`
+
+Les migrations sont enchaînées à la Start Command plutôt que placées dans la
+Pre-Deploy Command, qui est réservée aux plans payants. Le `&&` donne la même
+garantie : si une migration échoue, le process sort en erreur et l'API ne
+démarre pas — Render garde alors l'ancienne version en ligne, plutôt que de
+servir une API face à un schéma à moitié migré.
 
 `migration:run:prod` travaille depuis `dist/` (le build compilé) et non via
 ts-node. S'il ne reste rien à appliquer il affiche « No migrations are
-pending » et rend la main — c'est le cas normal d'un déploiement sans
-changement de schéma.
-
-Si la Pre-Deploy Command échoue, Render interrompt le déploiement et garde
-l'ancienne version en ligne : une migration cassée ne met jamais l'API en face
-d'un schéma à moitié migré.
+pending » et rend la main en une seconde — c'est le cas normal d'un
+déploiement sans changement de schéma.
 
 ## Import des données GTFS
 
