@@ -68,8 +68,12 @@ n'a jamais « tourné » en production.
 Le déploiement doit appliquer les migrations **avant** de démarrer l'API.
 Dans les settings du service Render :
 
-- **Build Command** : `pnpm install && pnpm build`
+- **Build Command** : `pnpm install --frozen-lockfile && pnpm build`
 - **Start Command** : `pnpm migration:run:prod && pnpm start:prod`
+
+Render détecte `pnpm-lock.yaml` et fournit pnpm sans configuration. Le champ
+`packageManager` du `package.json` fige la version utilisée, pour que le build
+en ligne résolve exactement les mêmes dépendances qu'en local.
 
 Les migrations sont enchaînées à la Start Command plutôt que placées dans la
 Pre-Deploy Command, qui est réservée aux plans payants. Le `&&` donne la même
