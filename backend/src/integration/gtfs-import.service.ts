@@ -1,4 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectDataSource } from '@nestjs/typeorm';
 import AdmZip from 'adm-zip';
 import { parse } from 'csv-parse/sync';
@@ -108,7 +110,32 @@ async function chunkedUpsert<T extends ObjectLiteral>(
 
 @Injectable()
 export class GtfsImportService {
-  constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
+  private readonly logger = new Logger(GtfsImportService.name);
+
+  constructor(
+    @InjectDataSource() private readonly dataSource: DataSource,
+    private readonly config: ConfigService,
+  ) {}
+
+  // TaM republishes its static GTFS a few times a year (new lines, schedule
+  // changes) — this was previously a manual `npm run import:gtfs` that never
+  // got run against production, so tram/bus data went stale silently.
+  // ponytail: weekly is arbitrary slack, not a TaM-documented cadence; move
+  // to a webhook/version check if a same-day publish turnaround matters.
+  @Cron(CronExpression.EVERY_WEEK)
+  async scheduledImport(): Promise<void> {
+    try {
+      const url = this.config.getOrThrow<string>('GTFS_STATIC_URL');
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`GTFS static download failed: HTTP ${response.status}`);
+      }
+      await this.importFromZip(Buffer.from(await response.arrayBuffer()));
+      this.logger.log('Scheduled GTFS import completed successfully.');
+    } catch (err) {
+      this.logger.error('Scheduled GTFS import failed', err);
+    }
+  }
 
   async importFromZip(zipBuffer: Buffer): Promise<void> {
     const zip = new AdmZip(zipBuffer);
