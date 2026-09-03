@@ -57,7 +57,29 @@ TypeORM compare les entités à la base et écrit le SQL correspondant.
 produit comme un `DROP` suivi d'un `ADD`, ce qui perd les données — le
 remplacer par un `ALTER TABLE ... RENAME COLUMN`.
 
-Un déploiement doit lancer `pnpm run migration:run` avant de démarrer l'API.
+La base Neon existait avant les migrations : son schéma avait été créé par
+`synchronize`. `InitialSchema` y a donc été enregistrée comme déjà appliquée
+(baseline) plutôt que rejouée, ce qui aurait échoué sur des tables existantes.
+Rien à refaire — c'est noté ici pour expliquer pourquoi la première migration
+n'a jamais « tourné » en production.
+
+### En production (Render)
+
+Le déploiement doit appliquer les migrations **avant** de démarrer l'API.
+Dans les settings du service Render :
+
+- **Build Command** : `pnpm install && pnpm build`
+- **Pre-Deploy Command** : `pnpm migration:run:prod`
+- **Start Command** : `pnpm start:prod`
+
+`migration:run:prod` travaille depuis `dist/` (le build compilé) et non via
+ts-node. S'il ne reste rien à appliquer il affiche « No migrations are
+pending » et rend la main — c'est le cas normal d'un déploiement sans
+changement de schéma.
+
+Si la Pre-Deploy Command échoue, Render interrompt le déploiement et garde
+l'ancienne version en ligne : une migration cassée ne met jamais l'API en face
+d'un schéma à moitié migré.
 
 ## Import des données GTFS
 
