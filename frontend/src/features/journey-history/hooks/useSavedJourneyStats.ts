@@ -3,9 +3,8 @@ import { useAuth } from '../../auth/hooks/useAuth';
 import { getSavedJourneyStats } from '../api/get-saved-journey-stats';
 import type { SavedJourneyStats } from '../types';
 
-// ponytail: same shape as useSavedJourneys — fetch once per token, no cache
-// layer. Both hooks refetch on mount; add a shared query cache only if
-// /history starts making more than these two calls.
+// Same shape as useSavedJourneys: fetch once per token, no cache layer. Add a
+// shared query cache only if /history grows past these two calls.
 export function useSavedJourneyStats() {
   const { token } = useAuth();
   const [stats, setStats] = useState<SavedJourneyStats | null>(null);

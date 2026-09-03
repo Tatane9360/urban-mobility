@@ -5,10 +5,8 @@ import { GeoPoint } from './geo-point';
 
 export type JourneyStep = OrsStep;
 
-// ponytail: "tracé" per CONTEXT.md's Journey Segment definition is captured
-// here as the named waypoints actually used (the matched stop, not just the
-// caller's raw search point) — a full route polyline is deferred to #12,
-// which is the first ticket that will actually render a map.
+// The waypoints actually used — the matched stop, not the caller's raw search
+// point.
 export interface JourneyWaypoint extends GeoPoint {
   name: string;
 }

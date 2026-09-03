@@ -8,9 +8,8 @@ import { haversineDistanceMeters } from './geo-distance';
 import { RawJourneySegment, toWaypoint } from './journey-segment';
 import { MobilityProvider } from './mobility-provider';
 
-// ponytail: average cycling speed in urban traffic, ~15 km/h — standard
-// bike planning constant, used only when OpenRouteService is unavailable
-// (see #11 for the original Haversine-only fallback).
+// ~15 km/h, the standard urban cycling planning constant. Only used when
+// OpenRouteService is unavailable.
 const BIKE_SPEED_METERS_PER_SECOND = 15000 / 3600;
 
 // A rider without a station on their doorstep will still walk to one —
@@ -26,8 +25,8 @@ export class BikeMobilityProvider implements MobilityProvider {
     private readonly openRouteService: OpenRouteService,
   ) {}
 
-  // ponytail: departureTime is part of the shared MobilityProvider contract
-  // (Bus/Tram needs it) but bike availability is read from the live GBFS
+  // departureTime is unused: it belongs to the shared MobilityProvider
+  // contract for Bus/Tram, but bike availability comes from the live GBFS
   // snapshot, not a schedule.
   async getSegments(
     from: GeoPoint,

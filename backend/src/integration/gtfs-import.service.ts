@@ -89,8 +89,8 @@ function toGtfsDate(yyyymmdd: string): string {
   return `${yyyymmdd.slice(0, 4)}-${yyyymmdd.slice(4, 6)}-${yyyymmdd.slice(6, 8)}`;
 }
 
-// ponytail: PostgreSQL caps bind params at 65535 per query; GTFS files (esp.
-// stop_times) can have tens of thousands of rows, so upserts are chunked.
+// Postgres caps bind params at 65535 per query, and stop_times runs to
+// hundreds of thousands of rows, so upserts must stay chunked.
 const UPSERT_CHUNK_SIZE = 2000;
 
 async function chunkedUpsert<T extends ObjectLiteral>(
@@ -120,8 +120,8 @@ export class GtfsImportService {
   // TaM republishes its static GTFS a few times a year (new lines, schedule
   // changes) — this was previously a manual `npm run import:gtfs` that never
   // got run against production, so tram/bus data went stale silently.
-  // ponytail: weekly is arbitrary slack, not a TaM-documented cadence; move
-  // to a webhook/version check if a same-day publish turnaround matters.
+  // Weekly is arbitrary slack, not a TaM-documented cadence. Move to a version
+  // check if same-day turnaround on a new publish ever matters.
   @Cron(CronExpression.EVERY_WEEK)
   async scheduledImport(): Promise<void> {
     try {

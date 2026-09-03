@@ -21,8 +21,8 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     throw new ApiError(body?.message ?? `Request failed (${res.status})`, res.status);
   }
 
-  // ponytail: 204 carries no body, so res.json() would throw. Callers of a
-  // 204 endpoint type T as void.
+  // 204 carries no body, so res.json() would throw. Callers of a 204 endpoint
+  // type T as void.
   if (res.status === 204) {
     return undefined as T;
   }

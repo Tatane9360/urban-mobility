@@ -22,9 +22,9 @@ export class ProfileService {
     dto: UpdateProfileDto,
   ): Promise<ProfileResponseDto> {
     const profile = await this.findByUserIdOrThrow(userId);
-    // ponytail: explicit field-by-field assignment, not Object.assign(profile,
-    // dto) — keeps the assignable surface pinned to these 3 fields even if
-    // MobilityProfile later grows a field that happens to share a DTO name.
+    // Field by field, not Object.assign(profile, dto): keeps the assignable
+    // surface pinned to these three even if the entity grows a field sharing a
+    // DTO name.
     if (dto.preferredModes !== undefined) {
       profile.preferredModes = dto.preferredModes;
     }
@@ -38,9 +38,8 @@ export class ProfileService {
     return ProfileResponseDto.fromEntity(saved);
   }
 
-  // ponytail: filtering on `user.id` doesn't require loading the `user`
-  // relation itself — avoids the profile response ever carrying User fields
-  // (passwordHash) back out through the controller.
+  // Filtering on user.id does not load the `user` relation, so the response
+  // can never carry User fields (passwordHash) back out.
   private async findByUserIdOrThrow(userId: string): Promise<MobilityProfile> {
     const profile = await this.profileRepository.findOne({
       where: { user: { id: userId } },

@@ -10,11 +10,9 @@ export class MobilityProfile {
   @OneToOne(() => User, (user) => user.mobilityProfile, { onDelete: 'CASCADE' })
   user!: User;
 
-  // ponytail: jsonb, not simple-array — simple-array splits on a literal
-  // comma, which corrupts any address containing one (e.g. "1 rue de la
-  // Loge, Montpellier"). No DB-level default either, for the same reason
-  // simple-array had none: the empty array is supplied explicitly at
-  // creation time (see AuthService.register).
+  // jsonb, never simple-array: simple-array splits on a literal comma, which
+  // corrupts any address containing one ("1 rue de la Loge, Montpellier").
+  // The empty array is supplied explicitly at creation (AuthService.register).
   @Column('jsonb')
   preferredModes!: string[];
 

@@ -44,8 +44,8 @@ export function JourneySearchForm({
   favoriteAddresses,
 }: JourneySearchFormProps) {
   const departureId = useId();
-  // ponytail: empty means "maintenant" — no clock state to keep in sync, and
-  // the request simply omits departureTime so the backend defaults to now.
+  // Empty means "maintenant": the request omits departureTime and the backend
+  // defaults to now, so there is no clock state to keep in sync.
   const [departureTime, setDepartureTime] = useState('');
   // Text typed into each field but not resolved to a point by clicking a
   // suggestion. Submitting geocodes it rather than refusing silently.

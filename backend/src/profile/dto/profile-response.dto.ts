@@ -4,10 +4,10 @@ import { MobilityProfile } from '../../auth/entities/mobility-profile.entity';
 import { FavoriteAddress } from '../favorite-address';
 import { FavoriteAddressDto } from './update-profile.dto';
 
-// ponytail: constructor takes this narrow shape, not MobilityProfile itself,
-// so it can only ever copy these 3 fields — a future `Object.assign(this,
-// profile)` "simplification" would fail to typecheck instead of silently
-// leaking User fields (passwordHash) through the `user` relation.
+// The constructor takes this narrow shape, not MobilityProfile itself, so it
+// can only copy these three fields. Replacing it with Object.assign(this,
+// profile) would fail to typecheck rather than silently leak User fields
+// (passwordHash) through the `user` relation — keep it narrow.
 interface ProfileFields {
   preferredModes: TransportMode[];
   favoriteAddresses: FavoriteAddress[];

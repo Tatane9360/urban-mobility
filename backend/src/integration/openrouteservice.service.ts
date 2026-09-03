@@ -36,10 +36,9 @@ export class OpenRouteService {
     this.apiKey = config.getOrThrow<string>('OPENROUTESERVICE_API_KEY');
   }
 
-  // ponytail: returns null (not a thrown error) on any failure — ORS is a
-  // "nicer than Haversine" enrichment, not a required dependency. Callers
-  // (Walk/BikeMobilityProvider) fall back to the straight-line estimate,
-  // per the PRD's own documented risk mitigation ("clé gratuite + fallback").
+  // Returns null rather than throwing on any failure: ORS is an enrichment
+  // over the straight-line estimate, not a required dependency, and Walk/Bike
+  // providers fall back to it.
   async getRoute(
     from: GeoPoint,
     to: GeoPoint,

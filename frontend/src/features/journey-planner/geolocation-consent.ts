@@ -6,10 +6,9 @@ const STORAGE_KEY = 'urbanflow.geolocation-consent';
 
 export type GeolocationConsent = 'granted' | 'denied' | null;
 
-// ponytail: localStorage throws in a few real cases (Safari private mode,
-// site data blocked). A read that fails is "never asked", a write that fails
-// just means the choice isn't remembered — neither is worth breaking the page
-// over, and neither can silently turn into consent.
+// localStorage throws in real cases (Safari private mode, site data blocked).
+// A failed read means "never asked", a failed write means the choice is not
+// remembered — neither breaks the page, and neither can become consent.
 export function readConsent(): GeolocationConsent {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -32,7 +31,7 @@ export function writeConsent(consent: GeolocationConsent): void {
 }
 
 // Minimal store so the profile screen re-renders when the choice changes.
-// ponytail: a Set of callbacks, not a state library — one component subscribes.
+// A Set of callbacks rather than a state library: one component subscribes.
 const listeners = new Set<() => void>();
 
 export function subscribeToConsent(listener: () => void): () => void {

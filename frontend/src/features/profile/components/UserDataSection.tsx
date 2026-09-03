@@ -28,8 +28,8 @@ export function UserDataSection({ email, onLeaving }: { email: string; onLeaving
     setExported(false);
     try {
       const data = await exportUserData(token);
-      // ponytail: Blob + object URL is the platform's own "save this JSON"
-      // path — no file-saver dependency for eight lines.
+      // Blob + object URL is the platform's own "save this file" path — no
+      // file-saver dependency for eight lines.
       const url = URL.createObjectURL(
         new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }),
       );

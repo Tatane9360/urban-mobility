@@ -29,10 +29,9 @@ export class SavedJourneySegment {
   @Column('int')
   order!: number;
 
-  // ponytail: plain varchar, not a Postgres enum type — no ENUM type exists
-  // elsewhere in this codebase either (MobilityProfile.preferredModes stores
-  // TransportMode values as a jsonb string array, same avoidance, different
-  // column shape). Skips the schema-migration cost of a first ENUM type.
+  // varchar, not a Postgres ENUM: no ENUM type exists anywhere in this schema
+  // (MobilityProfile.preferredModes stores TransportMode as jsonb strings),
+  // and adding the first one costs a migration on every value change.
   @Column('varchar')
   mode!: TransportMode;
 

@@ -18,7 +18,7 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 
 const BCRYPT_SALT_ROUNDS = 10;
-// ponytail: Postgres unique_violation code, see
+// Postgres unique_violation
 // https://www.postgresql.org/docs/current/errcodes-appendix.html
 const UNIQUE_VIOLATION = '23505';
 

@@ -17,11 +17,9 @@ import { JourneysModule } from './journeys/journeys.module';
     ConfigModule.forRoot({
       isGlobal: true,
     }),
-    // ponytail: limit/ttl are read from env vars (default: generous 100
-    // req/min/IP, high enough to never interfere with real usage or the
-    // existing e2e suite's rapid-fire requests) so a dedicated e2e spec can
-    // override them to a strict value and prove this exact global guard
-    // configuration — not just that @nestjs/throttler works in isolation.
+    // limit/ttl come from env vars (default 100 req/min/IP, high enough not to
+    // interfere with real usage or the e2e suite) so a spec can tighten them
+    // and exercise this exact global guard rather than the library alone.
     ThrottlerModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

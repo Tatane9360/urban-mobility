@@ -25,8 +25,8 @@ interface StationStatusResponse {
   };
 }
 
-// ponytail: GBFS ttl is 60s per endpoints.md; poll at half that so the cache
-// is never more than ~30s stale, without hammering the provider.
+// GBFS ttl is 60s (endpoints.md); polling at half that keeps the cache under
+// ~30s stale without hammering the provider.
 const POLL_INTERVAL_MS = 30_000;
 
 @Injectable()

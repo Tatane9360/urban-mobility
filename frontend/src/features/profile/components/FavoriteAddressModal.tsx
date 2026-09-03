@@ -111,9 +111,8 @@ export function FavoriteAddressModal({ open, onClose, onAdd, takenLabels }: Favo
       ref={dialogRef}
       onClose={onClose}
       onCancel={onClose}
-      // ponytail: dialog::backdrop can't be reached by a Tailwind utility
-      // class, so its own fade lives in globals.css; both keyframes are
-      // covered by the app-wide prefers-reduced-motion block there.
+      // dialog::backdrop cannot be reached by a Tailwind utility, so its fade
+      // lives in globals.css alongside this one's keyframes.
       className="m-auto w-full max-w-sm rounded-lg border border-zinc-200 bg-white p-5 text-left shadow-lg backdrop:bg-black/40 dark:border-zinc-800 dark:bg-zinc-900 [&[open]]:animate-[modal-in_150ms_ease-out]"
     >
       <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">Ajouter une adresse favorite</h2>

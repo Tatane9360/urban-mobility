@@ -16,9 +16,8 @@ import { RawJourneySegment } from './journey-segment';
 import { PlanJourneyDto, JourneySortCriterion } from './dto/plan-journey.dto';
 import { WalkMobilityProvider } from './walk.mobility-provider';
 
-// ponytail: below this, two points are "the same place" for bridging-walk
-// purposes — avoids a zero-duration Marche segment when a stop/station sits
-// right on the search point.
+// Below this, two points count as the same place: avoids a zero-duration
+// Marche segment when a stop sits right on the search point.
 const NEGLIGIBLE_WALK_METERS = 10;
 
 @Injectable()
@@ -233,9 +232,9 @@ export class JourneyPlannerService {
 
 // A segment carries the alerts that name its own GTFS route_id. Segments
 // with no routeId (Marche/Vélo) never match.
-// ponytail: routeId matching only — GTFS-RT informedEntity can also select by
-// stop or trip, and those selectors are dropped at decode time (see
-// gtfs-rt.types.ts). Widen both together if TaM starts publishing them.
+// routeId matching only. informedEntity can also select by stop or trip, but
+// those selectors are dropped at decode time (gtfs-rt.types.ts) — widen both
+// together if TaM starts publishing them.
 function withAlerts(
   segments: RawJourneySegment[],
   alerts: ServiceAlert[],

@@ -6,17 +6,16 @@ import { haversineDistanceMeters } from './geo-distance';
 import { RawJourneySegment, toWaypoint } from './journey-segment';
 import { MobilityProvider } from './mobility-provider';
 
-// ponytail: average walking speed, ~5 km/h — standard pedestrian planning
-// constant, used only when OpenRouteService is unavailable (see #11 for the
-// original Haversine-only fallback, now the degraded path instead of the norm).
+// ~5 km/h, the standard pedestrian planning constant. Only used when
+// OpenRouteService is unavailable.
 const WALK_SPEED_METERS_PER_SECOND = 5000 / 3600;
 
 @Injectable()
 export class WalkMobilityProvider implements MobilityProvider {
   constructor(private readonly openRouteService: OpenRouteService) {}
 
-  // ponytail: departureTime is part of the shared MobilityProvider contract
-  // (Bus/Tram needs it) but walking has no schedule to filter against.
+  // departureTime is unused: it belongs to the shared MobilityProvider
+  // contract for Bus/Tram, and walking has no schedule to filter against.
   async getSegments(
     from: GeoPoint,
     to: GeoPoint,

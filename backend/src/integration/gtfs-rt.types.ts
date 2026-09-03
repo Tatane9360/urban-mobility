@@ -21,10 +21,9 @@ export interface TripStopDelay {
 
 // One ServiceAlert entity, reduced to what the UI needs: which routes it hits
 // and the FR text.
-// ponytail: informedEntity is flattened to routeIds only — GTFS-RT also
-// carries stop/trip/agency-level selectors, but the UI only ever badges a
-// Bus/Tram segment by its line. Upgrade path: add stopIds/tripIds here and
-// widen the matching in JourneyPlannerService.
+// informedEntity is flattened to routeIds only: GTFS-RT also carries
+// stop/trip/agency selectors, but the UI badges a segment by its line. To
+// support them, add the fields here and widen JourneyPlannerService's matching.
 export interface ServiceAlert {
   id: string;
   routeIds: string[];

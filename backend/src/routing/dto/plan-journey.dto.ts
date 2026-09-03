@@ -30,9 +30,7 @@ export class PlanJourneyDto {
   @Type(() => JourneyPointDto)
   destination: JourneyPointDto;
 
-  // ponytail: optional, defaults to "now" in the controller — lets tests (and
-  // real users planning ahead) pin a departure time instead of always meaning
-  // "leaving right now".
+  // Defaults to now in the controller when omitted.
   @ApiPropertyOptional({
     description: 'Departure time, defaults to now',
     example: '2026-07-18T08:00:00.000Z',

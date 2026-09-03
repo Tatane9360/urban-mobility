@@ -5,16 +5,16 @@ import {
 } from '@nestjs/common';
 import { GeocodeResult } from './geocoding.types';
 
-// ponytail: Montpellier Méditerranée Métropole bounding box (viewbox), hand-picked
-// from the metropole's public boundaries — good enough to bias/restrict Nominatim
-// results without pulling in a shapefile for the MVP.
+// Montpellier Méditerranée Métropole bounding box, hand-picked from the
+// metropole's public boundaries — enough to restrict Nominatim results without
+// importing a shapefile.
 const MMM_VIEWBOX = '3.75,43.70,4.05,43.55';
 
 const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search';
 
-// ponytail: Nominatim's usage policy requires a real, identifying User-Agent
-// and at most ~1 req/s — the KPI-relevant part (rate limiting) is left to the
-// caller for now since the MVP has no meaningful traffic yet.
+// Nominatim's usage policy requires an identifying User-Agent and at most
+// ~1 req/s. The rate limit is NOT enforced here — add it before any real
+// traffic, or the public instance will block this client.
 const USER_AGENT = 'UrbanFlowMobility/1.0 (contact: tatanemkd@gmail.com)';
 
 interface NominatimEntry {

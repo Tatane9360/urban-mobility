@@ -58,10 +58,9 @@ interface SavedJourneyFields {
   savedAt: Date;
 }
 
-// ponytail: narrow constructor shape, not the SavedJourney entity itself —
-// keeps the response pinned to these fields even if the entity later grows a
-// userDbId/user relation field (see profile-response.dto.ts for the same
-// established pattern).
+// Narrow constructor shape, not the SavedJourney entity: keeps the response
+// pinned to these fields even if the entity grows a user relation. Same
+// pattern as profile-response.dto.ts.
 export class SavedJourneyResponseDto {
   id: string;
   segments: SavedJourneySegmentResponseDto[];

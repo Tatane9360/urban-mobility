@@ -18,9 +18,8 @@ export class User {
   @Column()
   passwordHash!: string;
 
-  // ponytail: strict 1-1 (unlike the *DbId FK pattern used for GTFS 1-N
-  // relations) — @JoinColumn owning side lives on User since a User always
-  // has exactly one Mobility Profile, never the reverse.
+  // Strict 1-1, unlike the *DbId FK pattern used for the GTFS 1-N relations.
+  // The owning side is User: a User always has exactly one profile.
   @OneToOne(() => MobilityProfile, (profile) => profile.user)
   @JoinColumn()
   mobilityProfile!: MobilityProfile;

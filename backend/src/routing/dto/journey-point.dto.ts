@@ -18,10 +18,9 @@ class CoordinatesDto {
   lon: number;
 }
 
-// ponytail: accepts either coordinates or a free-text address (geocoded via
-// #9) — exactly one must be present, enforced in JourneyPlannerService rather
-// than a custom class-validator decorator, since a one-line check is simpler
-// than a new validator for a single call site.
+// Either coordinates or a free-text address. Exactly one must be present —
+// enforced in JourneyPlannerService, not by a custom validator, since it is a
+// one-line check at a single call site.
 export class JourneyPointDto {
   @ApiPropertyOptional({
     description: 'Coordinates, mutually exclusive with address',

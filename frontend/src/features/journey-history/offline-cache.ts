@@ -6,9 +6,8 @@ import type { SavedJourney } from './types';
 // from a shared cache. Here the payload is cleared on logout instead.
 const STORAGE_KEY = 'urbanflow.saved-journeys-cache';
 
-// ponytail: localStorage, not IndexedDB — a handful of journeys is a few KB,
-// and the spec calls a local database over-dimensioned for this. Move if the
-// list ever grows past the ~5MB quota.
+// localStorage, not IndexedDB: a handful of journeys is a few KB. Move if the
+// list ever approaches the ~5MB quota.
 export function readCachedJourneys(): SavedJourney[] | null {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);

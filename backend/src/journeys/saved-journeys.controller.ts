@@ -57,8 +57,8 @@ export class SavedJourneysController {
   @HttpCode(204)
   remove(
     @Req() request: AuthenticatedRequest,
-    // ponytail: ParseUUIDPipe keeps a malformed id a 400 instead of letting
-    // Postgres reject the uuid cast as a 500.
+    // ParseUUIDPipe makes a malformed id a 400 instead of letting Postgres
+    // reject the uuid cast as a 500.
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<void> {
     return this.savedJourneyService.deleteForUser(request.userId, id);

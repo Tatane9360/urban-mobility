@@ -11,35 +11,35 @@ import {
   tripStopKey,
 } from './gtfs-rt.types';
 
-// ponytail: PRD KPI is <=30s staleness for GTFS-RT; poll at half that so the
-// cache is never more than ~30s stale. ponytail: 30s, not 15s — TaM throttles
-// TripUpdate.pb hard enough that a single client polling every 20s still gets
-// HTTP 429 about half the time (measured 2026-09-01, with this service stopped),
-// so a tighter interval buys no freshness and only risks a ban.
+// Do not shorten: TaM throttles TripUpdate.pb hard enough that polling every
+// 20s still drew HTTP 429 about half the time (measured 2026-09-01). A tighter
+// interval buys no freshness and risks a ban.
 const POLL_INTERVAL_MS = 30_000;
 
-// A snapshot older than this is served as "degraded" (theoretical schedules)
-// rather than passed off as real-time.
-//
-// ponytail: pinned to the PRD's 30s freshness KPI, NOT derived from
-// POLL_INTERVAL_MS. It used to be 3x the poll; at a 30s poll that would be 90s,
-// which would serve minute-and-a-half-old positions as live and break the KPI.
-// The cost of pinning it is that one missed refresh now flips the UI to
-// degraded — which is the honest reading, since the data really is over 30s old
-// at that point.
+// Past this, a snapshot is served as "degraded" (theoretical schedules) rather
+// than passed off as real-time. Pinned to the PRD's 30s freshness KPI, not
+// derived from POLL_INTERVAL_MS: any multiple of the poll would serve
+// minute-old positions as live.
 const STALE_AFTER_MS = 30_000;
 
-// ponytail: alerts are polled on their own, much slower interval. Polling all
-// three feeds x two networks at 15s made data.montpellier3m.fr answer HTTP 429
-// (observed 2026-08-29) — six requests every 15s is 3x what this service used
-// to send. Disruptions are published by a human and last hours, so a 5-minute
-// refresh is ample, and it takes the steady-state load back down to four
-// requests per 15s. This does NOT affect the 45s staleness threshold:
-// STALE_AFTER_MS measures the vehicle/delay snapshot, which is still refreshed
-// every 15s; alerts carry their own activePeriod and are filtered on it at
-// read time, so a 5-minute-old alert list cannot show an expired disruption.
-// Upgrade path if 429s persist: stagger the two networks, or back off on 429.
+// Alerts poll on their own, far slower interval: they are published by a human
+// and last hours, while polling all six feeds at 15s drew 429s. Freshness is
+// unaffected — alerts carry their own activePeriod and are filtered on it at
+// read time, so an old list cannot show an expired disruption.
 const ALERT_POLL_INTERVAL_MS = 5 * 60_000;
+
+// TripUpdate.pb 429s on nearly every cycle (observed 2026-09-03), which a fixed
+// 30s retry only sustains. Doubles per consecutive failure — 1m, 2m, 4m, 8m —
+// capped so a recovered feed does not stay dark, and reset by any success.
+const TRIP_UPDATE_BACKOFF_BASE_MS = 60_000;
+const TRIP_UPDATE_BACKOFF_MAX_MS = 10 * 60_000;
+
+// Stands in for a fetch that was never attempted: no entities, and no failures
+// either, since a skipped feed did not fail — it was not asked.
+const EMPTY_FEEDS: {
+  entities: transit_realtime.IFeedEntity[][];
+  failures: string[];
+} = { entities: [], failures: [] };
 
 // Defaults are the real published TaM endpoints (see endpoints.md), so the
 // four new feeds work without touching .env. Overridable per-env all the same.
@@ -59,6 +59,10 @@ export class GtfsRtService implements OnModuleInit {
   private readonly tripUpdateUrls: string[];
   private readonly alertUrls: string[];
   private snapshot: GtfsRtSnapshot | null = null;
+  // TripUpdate.pb is the feed TaM throttles hardest. These hold the backoff so
+  // a 429 stops the next attempt instead of provoking another one.
+  private tripUpdateFailures = 0;
+  private tripUpdateBackoffUntil: number | null = null;
   // Refreshed on ALERT_POLL_INTERVAL_MS, not on every snapshot refresh; the
   // snapshot copies whatever is cached here so getActiveAlerts keeps reading
   // one place. A failed alert poll leaves the previous list standing.
@@ -69,12 +73,8 @@ export class GtfsRtService implements OnModuleInit {
       config.getOrThrow<string>('GTFS_RT_URBAIN_VEHICLE_POSITION_URL'),
       config.getOrThrow<string>('GTFS_RT_SUBURBAIN_VEHICLE_POSITION_URL'),
     ];
-    // ponytail: get() with a default, not getOrThrow() — the two
-    // VehiclePosition vars predate this and sit in every existing .env, but a
-    // getOrThrow on a brand-new var would break every e2e suite the moment it
-    // boots AppModule against an un-updated .env. The published URLs are
-    // stable and documented in endpoints.md, so defaulting to them is honest
-    // rather than a silent no-op.
+    // get() with a default, not getOrThrow(): these vars are absent from older
+    // .env files, and the published URLs are stable (see endpoints.md).
     this.tripUpdateUrls = [
       config.get<string>(
         'GTFS_RT_URBAIN_TRIP_UPDATE_URL',
@@ -104,48 +104,64 @@ export class GtfsRtService implements OnModuleInit {
   @Interval(POLL_INTERVAL_MS)
   async refresh(): Promise<void> {
     try {
-      // ponytail: allSettled, not all — TaM throttles the two feeds
-      // independently, and Promise.all would throw away a VehiclePosition that
-      // answered 200 just because its TripUpdate sibling returned 429.
-      const [vehicleFeeds, tripUpdateFeeds] = await Promise.all([
+      // fetchFeeds settles each URL independently: TaM throttles the feeds
+      // separately, and one 429 must not discard a sibling that answered 200.
+      // While backing off, TripUpdate is skipped rather than re-requested.
+      const skipTripUpdates = this.tripUpdatesBackedOff();
+      const [vehicleFeeds, fetchedTripUpdates] = await Promise.all([
         this.fetchFeeds(this.vehiclePositionUrls),
-        this.fetchFeeds(this.tripUpdateUrls),
+        skipTripUpdates
+          ? Promise.resolve(EMPTY_FEEDS)
+          : this.fetchFeeds(this.tripUpdateUrls),
       ]);
+      const tripUpdateFeeds = {
+        ...fetchedTripUpdates,
+        skipped: skipTripUpdates,
+      };
 
-      // A feed group that answered nothing must not overwrite what it holds
-      // with an empty result that still looks fresh — the delay index in
-      // particular, since an empty Map reads as "no train is late".
+      // Positions must survive a throttled TripUpdate. Failing the whole
+      // refresh here left fetchedAt untouched, so isFresh() went false and the
+      // planner served degraded schedules even though live positions had
+      // answered 200 — the recurring 429 on TripUpdate.pb alone was enough to
+      // switch real-time off for good.
       if (
         vehicleFeeds.failures.length > 0 &&
         vehicleFeeds.entities.length === 0
       ) {
         throw new Error(vehicleFeeds.failures[0]);
       }
-      if (
-        tripUpdateFeeds.failures.length > 0 &&
-        tripUpdateFeeds.entities.length === 0
-      ) {
-        throw new Error(tripUpdateFeeds.failures[0]);
+
+      const tripUpdatesUsable =
+        !tripUpdateFeeds.skipped && tripUpdateFeeds.entities.length > 0;
+      if (tripUpdateFeeds.failures.length > 0) {
+        this.noteTripUpdateFailure(tripUpdateFeeds.failures);
+      } else if (!tripUpdateFeeds.skipped) {
+        this.tripUpdateBackoffUntil = null;
+        this.tripUpdateFailures = 0;
       }
 
       this.snapshot = {
         vehicles: vehicleFeeds.entities.flatMap(toVehiclePositions),
-        delays: new Map(
-          tripUpdateFeeds.entities
-            .flatMap(toTripStopDelays)
-            .map((d) => [tripStopKey(d.tripId, d.stopId), d]),
-        ),
+        // An empty Map reads as "nothing is late", so a failed or skipped
+        // TripUpdate carries the previous delays forward instead.
+        delays: tripUpdatesUsable
+          ? new Map(
+              tripUpdateFeeds.entities
+                .flatMap(toTripStopDelays)
+                .map((d) => [tripStopKey(d.tripId, d.stopId), d]),
+            )
+          : (this.snapshot?.delays ?? new Map<string, TripStopDelay>()),
         alerts: this.alerts,
         fetchedAt: new Date(),
       };
 
-      // A throttled feed is expected here and already handled by keeping the
-      // rest of the snapshot, so it is not an error — logging it as one made
-      // the console shout every cycle about a non-event.
-      const failures = [...vehicleFeeds.failures, ...tripUpdateFeeds.failures];
-      if (failures.length > 0) {
+      // VehiclePosition only: TripUpdate failures are already reported once by
+      // noteTripUpdateFailure, and logging them here too printed the same 429
+      // twice per cycle. A throttled feed is expected and handled by carrying
+      // the previous data forward, so it is a warning, never an error.
+      if (vehicleFeeds.failures.length > 0) {
         this.logger.warn(
-          `GTFS-RT partial refresh, kept ${failures.length} feed(s) from the previous snapshot: ${failures.join('; ')}`,
+          `GTFS-RT partial refresh, kept ${vehicleFeeds.failures.length} VehiclePosition feed(s) from the previous snapshot: ${vehicleFeeds.failures.join('; ')}`,
         );
       }
     } catch (err) {
@@ -153,6 +169,28 @@ export class GtfsRtService implements OnModuleInit {
         `GTFS-RT refresh failed, keeping previous snapshot: ${(err as Error).message}`,
       );
     }
+  }
+
+  private tripUpdatesBackedOff(now: number = Date.now()): boolean {
+    return (
+      this.tripUpdateBackoffUntil !== null && now < this.tripUpdateBackoffUntil
+    );
+  }
+
+  // Exponential backoff, capped. TaM answers 429 on TripUpdate.pb for minutes
+  // at a time; retrying every 30s through that only extends the throttle and
+  // fills the log with one line per cycle. Logged once per new backoff window
+  // rather than per attempt.
+  private noteTripUpdateFailure(failures: string[]): void {
+    this.tripUpdateFailures += 1;
+    const delay = Math.min(
+      TRIP_UPDATE_BACKOFF_BASE_MS * 2 ** (this.tripUpdateFailures - 1),
+      TRIP_UPDATE_BACKOFF_MAX_MS,
+    );
+    this.tripUpdateBackoffUntil = Date.now() + delay;
+    this.logger.warn(
+      `GTFS-RT TripUpdate unavailable (${failures.length} feed(s)), backing off ${Math.round(delay / 1000)}s: ${failures.join('; ')}`,
+    );
   }
 
   @Interval(ALERT_POLL_INTERVAL_MS)
@@ -285,11 +323,10 @@ function toVehiclePositions(
 
 // TaM publishes its real-time trip_id as `<GTFS trip_id>-<N>` (a run counter
 // the static feed does not carry), so the raw value never matches gtfs_trip.
-// ponytail: measured against the real feed and a full TaM GTFS import on
-// 2026-08-29 — 0/38 RT tripIds matched the 28380 imported trips as published,
-// 36/38 after stripping a trailing `-\d+`. A quirk of the TaM producer, NOT a
-// rule of the GTFS-RT standard, so it is normalised here at the feed boundary
-// rather than in the SQL, which holds the canonical GTFS value.
+// Measured 2026-08-29 against the real feed and a full GTFS import: 0/38 RT
+// tripIds matched as published, 36/38 after stripping a trailing `-\d+`. A TaM
+// producer quirk, not a GTFS-RT rule, so it is normalised here at the feed
+// boundary rather than in SQL, which holds the canonical value.
 //
 // Both forms are indexed rather than picking one: `-\d+` cannot tell a run
 // counter apart from an id that merely ends in digits (the 2 ids that still
@@ -316,12 +353,9 @@ function toTripStopDelays(
     const tripDelay = entity.tripUpdate?.delay ?? null;
     for (const update of entity.tripUpdate?.stopTimeUpdate ?? []) {
       if (!update.stopId) continue;
-      // ponytail: only `delay` is read, never the absolute epoch `time` on
-      // arrival/departure — deriving a delay from `time` needs the trip's own
-      // static stop_time to subtract from, which lives in Postgres, not here.
-      // Upgrade path: pass the scheduled epoch into the lookup and subtract
-      // there, in BusTramMobilityProvider, where the stop_time is already in
-      // hand.
+      // Only `delay` is read, never the absolute epoch `time`: deriving a delay
+      // from it needs the static stop_time, which lives in Postgres. To support
+      // it, subtract in BusTramMobilityProvider where that row is already held.
       const delaySeconds =
         update.departure?.delay ?? update.arrival?.delay ?? tripDelay;
       if (delaySeconds === null || delaySeconds === undefined) continue;
@@ -340,9 +374,9 @@ function toServiceAlerts(
     .filter((entity) => entity.alert)
     .map((entity) => {
       const alert = entity.alert!;
-      // ponytail: only the first activePeriod is kept — GTFS-RT allows a list
-      // (a disruption recurring over several windows). One window covers
-      // TaM's feed; upgrade path is to keep the array and test `some()`.
+      // Only the first activePeriod is kept. GTFS-RT allows several (a
+      // recurring disruption); one covers TaM's feed. To support more, keep the
+      // array and test it with some().
       const period = alert.activePeriod?.[0];
       return {
         id: entity.id,

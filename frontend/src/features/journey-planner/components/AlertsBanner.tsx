@@ -5,9 +5,9 @@ import { Warning } from '@phosphor-icons/react/dist/ssr';
 import { fetchAlerts } from '../api/alerts';
 import type { ServiceAlert } from '../types';
 
-// ponytail: fetched once on mount, not polled — the banner is informational
-// and the page is short-lived. Upgrade path: same 30s interval as the backend
-// poll if a disruption appearing mid-session ever matters.
+// Fetched once on mount, not polled: this banner is informational and the
+// planner page is short-lived. The /alerts page uses useAlerts, which does
+// poll — reuse that hook here if a mid-session disruption ever matters.
 export function AlertsBanner() {
   const [alerts, setAlerts] = useState<ServiceAlert[]>([]);
 

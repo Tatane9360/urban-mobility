@@ -2,8 +2,8 @@ import { GeoPoint } from './geo-point';
 
 const EARTH_RADIUS_METERS = 6371000;
 
-// ponytail: Haversine great-circle distance — no external routing API in
-// this ticket, straight-line distance is the deliberate fallback (see #11).
+// Great-circle distance. Deliberately straight-line: the fallback used
+// wherever a real routed distance is unavailable.
 export function haversineDistanceMeters(from: GeoPoint, to: GeoPoint): number {
   const toRad = (deg: number) => (deg * Math.PI) / 180;
   const dLat = toRad(to.lat - from.lat);

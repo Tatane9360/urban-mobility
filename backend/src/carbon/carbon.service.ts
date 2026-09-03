@@ -11,11 +11,9 @@ import {
 
 @Injectable()
 export class CarbonService {
-  // ponytail: uses the segment's own distanceMeters (its provider's real
-  // distance — an OpenRouteService route length for Walk/Bike, Haversine
-  // between matched stops for Bus/Tram, see #16) instead of re-deriving a
-  // straight-line distance from from/to, so carbon stays consistent with
-  // whatever distance actually produced the segment's duration.
+  // Uses the segment's own distanceMeters rather than re-deriving one from
+  // from/to, so carbon stays consistent with the distance that actually
+  // produced the segment's duration.
   withCarbon(segment: RawJourneySegment): CarbonedJourneySegment {
     const distanceKm = segment.distanceMeters / 1000;
     return {
