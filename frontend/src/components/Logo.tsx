@@ -5,31 +5,43 @@ import Link from 'next/link';
 //
 // The mark is inlined rather than pulled from /logo-mark.svg through an <img>:
 // the arc reads from --logo-arc, and CSS custom properties do not cross into
-// an external image, so a linked file would stay navy on the dark theme.
-// public/logo-mark.svg holds the same artwork for anything outside the app.
+// an external image, so a linked file would keep the navy that scores 1.75
+// against the dark background. public/logo-mark.svg holds the same artwork for
+// anything outside the app.
 export function Logo() {
   return (
     <Link href="/" className="flex items-center gap-2">
       <svg
         viewBox="0 0 64 64"
-        width={24}
-        height={24}
+        width={26}
+        height={26}
         aria-hidden="true"
         className="shrink-0"
       >
-        <g fill="var(--logo-arc)">
-          <path d="M9 18h46v6H9z" />
-          <path d="M15 9h34l6 8H9z" />
-          <path d="M12 24h9v25h-9z" />
-          <path d="M43 24h9v25h-9z" />
-          <path d="M21 40a11 11 0 0 1 22 0v9h-6v-9a5 5 0 0 0-10 0v9h-6z" />
-          <path d="M7 49h50v5H7z" />
+        <g
+          fill="none"
+          stroke="var(--logo-arc)"
+          strokeWidth="2.4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M12 24 20 16h24l8 8" />
+          <path d="M18 24h28" />
+          <path d="M12 24v25" />
+          <path d="M51 24v25" />
+          <path d="M20 27v22" />
+          <path d="M44 27v22" />
+          <path d="M15.5 44v-8a1.6 1.6 0 0 1 3.2 0v8" />
+          <path d="M45.3 44v-8a1.6 1.6 0 0 1 3.2 0v8" />
+          <path d="M25 49V36a7 7 0 0 1 14 0v13" />
+          <path d="M10 53h8" />
+          <path d="M41 53h13" />
         </g>
         <path
-          d="M14 58c6 0 8-7 18-7s12-7 18-7"
+          d="M8 56c8 1 14-1 18-6s-3-8 1-12 8-3 12-4 8 0 14-1"
           fill="none"
           stroke="var(--logo-route)"
-          strokeWidth="6"
+          strokeWidth="2.8"
           strokeLinecap="round"
         />
       </svg>

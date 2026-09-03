@@ -1,27 +1,42 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="UrbanFlow">
-  <!-- Montpellier's Arc de Triomphe with a route running through its archway:
-       the city, and movement through it. Filled shapes rather than traced
-       outlines, so it survives at favicon size where hairlines vanish.
-       Two tokens, each with a fallback so the file also works standalone
-       (ImageResponse, a plain <img>). -->
-  <g fill="var(--logo-arc, #1E3A5F)">
-    <path d="M9 18h46v6H9z"/>
-    <path d="M15 9h34l6 8H9z"/>
-    <!-- Piers, either side of the archway -->
-    <path d="M12 24h9v25h-9z"/>
-    <path d="M43 24h9v25h-9z"/>
-    <!-- Vault: springs from the piers and stops above the roadway, so the
-         route below reads as passing under it rather than across it -->
-    <path d="M21 40a11 11 0 0 1 22 0v9h-6v-9a5 5 0 0 0-10 0v9h-6z"/>
-    <path d="M7 49h50v5H7z"/>
-  </g>
-  <!-- The route through the arch: a stroke, so its width stays even round the
-       bend, clipped to the viewBox by starting and ending inside it. -->
-  <path
-    d="M14 58c6 0 8-7 18-7s12-7 18-7"
+  <!-- Montpellier's Arc de Triomphe with a path winding under the archway,
+       redrawn from logo-urban-flow.webp as strokes, matching its line-art
+       treatment. Colours sampled from that file: #1d3c5d and #7aba8e.
+       Two tokens with fallbacks, so the file also works standalone. -->
+  <g
     fill="none"
-    stroke="var(--logo-route, #F97316)"
-    stroke-width="6"
+    stroke="var(--logo-arc, #1d3c5d)"
+    stroke-width="2.4"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <!-- Chamfered roofline over the entablature: shallow, so the cornice reads
+         as a wide flat cap rather than a pitched roof -->
+    <path d="M12 24 20 16h24l8 8" />
+    <path d="M18 24h28" />
+    <!-- Outer piers and their inner faces, the recess holding the vault -->
+    <path d="M13 24v25" />
+    <path d="M51 24v25" />
+    <path d="M20 27v22" />
+    <path d="M44 27v22" />
+    <!-- Blind arches inside each pier -->
+    <path d="M15.5 44v-8a1.6 1.6 0 0 1 3.2 0v8" />
+    <path d="M45.3 44v-8a1.6 1.6 0 0 1 3.2 0v8" />
+    <!-- Main vault, springing from the inner piers over the roadway -->
+    <path d="M25 49V36a7 7 0 0 1 14 0v13" />
+    <!-- Plinth, left open where the path crosses it -->
+    <path d="M10 53h8" />
+    <path d="M41 53h13" />
+  </g>
+  <!-- The path: enters bottom-left, doubles back through the archway in an S,
+       then runs out to the right. The reversal is the mark's signature — a
+       plain diagonal loses it. Drawn last, so it passes in front of the
+       plinth. -->
+  <path
+    d="M8 56c8 1 14-1 18-6s-3-8 1-12 8-3 12-4 8 0 14-1"
+    fill="none"
+    stroke="var(--logo-route, #7aba8e)"
+    stroke-width="2.8"
     stroke-linecap="round"
   />
 </svg>
