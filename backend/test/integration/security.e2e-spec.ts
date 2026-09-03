@@ -90,12 +90,15 @@ describe('Security hardening (e2e)', () => {
 
     it('returns 429 after exceeding the configured limit on a real route', async () => {
       const server = app.getHttpServer();
+      // /alerts is public (no guard of its own) and needs no fixtures, so a
+      // non-429 status here means the throttler let the request through
+      // rather than that the route rejected it for some other reason.
       for (let i = 0; i < 3; i++) {
-        const ok = await request(server).get('/');
+        const ok = await request(server).get('/alerts');
         expect(ok.status).toBe(200);
       }
 
-      const limited = await request(server).get('/');
+      const limited = await request(server).get('/alerts');
       expect(limited.status).toBe(429);
     });
   });
