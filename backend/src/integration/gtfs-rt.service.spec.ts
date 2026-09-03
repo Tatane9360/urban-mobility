@@ -509,7 +509,7 @@ describe('GtfsRtService', () => {
     expect(service.getSnapshot()).toBe(firstSnapshot);
   });
 
-  it('keeps the previous snapshot when only the TripUpdate feed is broken', async () => {
+  it('carries the previous delays forward when only the TripUpdate feed is broken', async () => {
     global.fetch = mockFetchByFeed({
       tripUpdate: [
         {
@@ -527,7 +527,10 @@ describe('GtfsRtService', () => {
     expect(firstSnapshot!.delays.size).toBe(1);
 
     // VehiclePosition and Alert still answer fine; only TripUpdate 500s. The
-    // snapshot must not be half-rewritten with an empty delay index.
+    // delay index must not be blanked — an empty Map reads as "nothing is
+    // late" — but the snapshot itself must still be rebuilt: abandoning the
+    // whole refresh froze fetchedAt, so isFresh() went false and the planner
+    // served degraded schedules on the strength of positions that were fine.
     global.fetch = jest.fn((url: string) =>
       url.includes('TripUpdate')
         ? Promise.resolve({ ok: false, status: 500 } as unknown as Response)
@@ -535,7 +538,41 @@ describe('GtfsRtService', () => {
     );
     await service.refresh();
 
-    expect(service.getSnapshot()).toBe(firstSnapshot);
+    const second = service.getSnapshot()!;
+    expect(second).not.toBe(firstSnapshot);
+    expect(second.delays.size).toBe(1);
+    expect(second.delays.get(tripStopKey('TRIP_L1_1', 'MOSSON'))?.delaySeconds).toBe(180);
+    expect(second.fetchedAt.getTime()).toBeGreaterThanOrEqual(
+      firstSnapshot!.fetchedAt.getTime(),
+    );
+    // Live positions kept the snapshot fresh despite the broken TripUpdate.
+    expect(service.isFresh()).toBe(true);
+  });
+
+  it('backs off instead of re-requesting a throttled TripUpdate every cycle', async () => {
+    const tripUpdateCalls = () =>
+      (global.fetch as jest.Mock).mock.calls.filter(([url]) =>
+        String(url).includes('TripUpdate'),
+      ).length;
+
+    global.fetch = jest.fn((url: string) =>
+      url.includes('TripUpdate')
+        ? Promise.resolve({ ok: false, status: 429 } as unknown as Response)
+        : Promise.resolve(pbResponse(encodeFeed([]))),
+    );
+    const service = new GtfsRtService(mockConfig());
+
+    await service.refresh();
+    const afterFirst = tripUpdateCalls();
+    expect(afterFirst).toBeGreaterThan(0);
+
+    // The next cycles fall inside the backoff window and must not touch it.
+    await service.refresh();
+    await service.refresh();
+    expect(tripUpdateCalls()).toBe(afterFirst);
+
+    // Positions keep flowing throughout — the backoff must not cost freshness.
+    expect(service.isFresh()).toBe(true);
   });
 
   // TaM throttles the two networks independently, so one 429 must not discard
