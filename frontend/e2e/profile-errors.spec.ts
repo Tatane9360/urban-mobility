@@ -9,7 +9,7 @@ const TOKEN = 'test-token';
 const USER = { id: 'u1', email: 'jean.dupont@example.com' };
 const PROFILE = {
   preferredModes: ['Tram'],
-  favoriteAddresses: ['12 rue de la Loge, Montpellier'],
+  favoriteAddresses: [{ label: 'Maison', address: '12 rue de la Loge, Montpellier' }],
   pmrAccessibility: false,
 };
 
@@ -38,23 +38,32 @@ test('explains a failed profile load and offers a way out', async ({ page }) => 
   await expect(alert).toContainText('Impossible de charger votre profil');
   await expect(alert.getByRole('link', { name: /planificateur/ })).toBeVisible();
 
-  // Retry actually re-requests and recovers.
+  // Retry actually re-requests and recovers: the form replaces the error.
   await alert.getByRole('button', { name: 'Réessayer' }).click();
-  await expect(page.getByRole('button', { name: 'Enregistrer' })).toBeVisible();
+  await expect(main.getByRole('group', { name: 'Modes de transport préférés' })).toBeVisible();
   expect(attempts).toBe(2);
 });
 
-test('confirms a successful save instead of dropping silently back to rest', async ({ page }) => {
-  const main = mainOf(page);
+test('reflects a successful save in the control itself', async ({ page }) => {
+  // Every control saves on click — there is no Enregistrer button. The pressed
+  // state is driven by the server's response, so it only flips once the PATCH
+  // came back.
   await signIn(page);
-  await page.route('http://localhost:3000/profile', (route) =>
-    route.fulfill({ json: PROFILE }),
-  );
+  await page.route('http://localhost:3000/profile', (route) => {
+    if (route.request().method() === 'PATCH') {
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      return route.fulfill({ json: { ...PROFILE, ...body } });
+    }
+    return route.fulfill({ json: PROFILE });
+  });
 
   await page.goto('/profile');
-  await page.getByRole('button', { name: 'Enregistrer' }).click();
+  const velo = page.getByRole('button', { name: 'Vélo' });
+  await expect(velo).toHaveAttribute('aria-pressed', 'false');
 
-  await expect(main.getByRole('status').first()).toContainText('Préférences enregistrées');
+  await velo.click();
+
+  await expect(velo).toHaveAttribute('aria-pressed', 'true');
 });
 
 test('reports a failed save rather than looking like it worked', async ({ page }) => {
@@ -67,10 +76,11 @@ test('reports a failed save rather than looking like it worked', async ({ page }
   );
 
   await page.goto('/profile');
-  await page.getByRole('button', { name: 'Enregistrer' }).click();
+  await page.getByRole('button', { name: 'Vélo' }).click();
 
   await expect(main.getByRole('alert')).toBeVisible();
-  await expect(main.getByRole('status').first()).not.toContainText('enregistrées');
+  // The rejected change must not look applied.
+  await expect(page.getByRole('button', { name: 'Vélo' })).toHaveAttribute('aria-pressed', 'false');
 });
 
 test('reports a failed export', async ({ page }) => {
@@ -110,8 +120,11 @@ test('the address field has an accessible name of its own', async ({ page }) => 
   await page.route('http://localhost:3000/profile', (route) => route.fulfill({ json: PROFILE }));
 
   await page.goto('/profile');
+  await page.getByRole('button', { name: 'Ajouter une adresse' }).click();
+
   // Named by its label, not merely by its placeholder.
-  await expect(page.getByLabel('Ajouter une adresse favorite')).toBeVisible();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByRole('combobox', { name: 'Adresse' })).toBeVisible();
 });
 
 test('confirms a successful deletion before redirecting away', async ({ page }) => {

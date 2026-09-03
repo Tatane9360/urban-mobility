@@ -92,15 +92,21 @@ export function ProfileForm({ profile, saving, error, onSave }: ProfileFormProps
           <ul className="mb-3 flex flex-col divide-y divide-zinc-200 dark:divide-zinc-800">
             {profile.favoriteAddresses.map((favorite, index) => (
               <li key={`${favorite.label}-${index}`} className="flex items-center justify-between gap-2 py-2">
+                {/* A legacy favorite carries no label, so the address moves up
+                    into the title line rather than leaving it blank. */}
                 <span className="flex flex-col">
-                  <span className="text-sm font-medium text-zinc-900 dark:text-zinc-50">{favorite.label}</span>
-                  <span className="text-xs text-zinc-500 dark:text-zinc-400">{favorite.address}</span>
+                  <span className="text-sm font-medium text-zinc-900 dark:text-zinc-50">
+                    {favorite.label || favorite.address}
+                  </span>
+                  {favorite.label && (
+                    <span className="text-xs text-zinc-500 dark:text-zinc-400">{favorite.address}</span>
+                  )}
                 </span>
                 <button
                   type="button"
                   disabled={saving}
                   onClick={() => removeFavorite(index)}
-                  aria-label={`Retirer ${favorite.label}`}
+                  aria-label={`Retirer ${favorite.label || favorite.address}`}
                   className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-zinc-400 hover:bg-zinc-100 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-zinc-800 dark:hover:text-red-400"
                 >
                   <Trash size={16} />
