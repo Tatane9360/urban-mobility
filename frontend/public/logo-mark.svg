@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="UrbanFlow">
+  <!-- Montpellier's Arc de Triomphe with a route running through its archway:
+       the city, and movement through it. Filled shapes rather than traced
+       outlines, so it survives at favicon size where hairlines vanish.
+       Two tokens, each with a fallback so the file also works standalone
+       (ImageResponse, a plain <img>). -->
+  <g fill="var(--logo-arc, #1E3A5F)">
+    <path d="M9 18h46v6H9z"/>
+    <path d="M15 9h34l6 8H9z"/>
+    <!-- Piers, either side of the archway -->
+    <path d="M12 24h9v25h-9z"/>
+    <path d="M43 24h9v25h-9z"/>
+    <!-- Vault: springs from the piers and stops above the roadway, so the
+         route below reads as passing under it rather than across it -->
+    <path d="M21 40a11 11 0 0 1 22 0v9h-6v-9a5 5 0 0 0-10 0v9h-6z"/>
+    <path d="M7 49h50v5H7z"/>
+  </g>
+  <!-- The route through the arch: a stroke, so its width stays even round the
+       bend, clipped to the viewBox by starting and ending inside it. -->
+  <path
+    d="M14 58c6 0 8-7 18-7s12-7 18-7"
+    fill="none"
+    stroke="var(--logo-route, #F97316)"
+    stroke-width="6"
+    stroke-linecap="round"
+  />
+</svg>

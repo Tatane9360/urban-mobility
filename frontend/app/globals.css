@@ -5,6 +5,12 @@
   --foreground: #18181b;
   --accent: #1e3a5f;
   --accent-hover: #16293f;
+  /* The arc follows --accent, so it lightens with it in dark mode — the deep
+     navy alone reads as a dark smudge on a dark background. The route keeps
+     one warm tone in both themes: it is the mark's only accent of colour, and
+     orange holds its contrast either way. */
+  --logo-arc: var(--accent);
+  --logo-route: #f97316;
 }
 
 @theme inline {

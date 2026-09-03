@@ -1,4 +1,5 @@
 import { ImageResponse } from 'next/og';
+import { LogoMark } from '../logo-mark';
 
 export function GET() {
   return new ImageResponse(
@@ -11,13 +12,9 @@ export function GET() {
           alignItems: 'center',
           justifyContent: 'center',
           background: '#1E3A5F',
-          color: '#fff',
-          fontSize: 288,
-          fontWeight: 700,
-          fontFamily: 'sans-serif',
         }}
       >
-        U
+        <LogoMark size={396} />
       </div>
     ),
     { width: 512, height: 512 },
