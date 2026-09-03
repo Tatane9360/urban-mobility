@@ -74,14 +74,18 @@ describe('Profile (e2e)', () => {
         .set('Authorization', `Bearer ${token}`)
         .send({
           preferredModes: ['Bus', 'Vélo'],
-          favoriteAddresses: [{ label: 'Maison', address: '1 rue de la Loge, Montpellier' }],
+          favoriteAddresses: [
+            { label: 'Maison', address: '1 rue de la Loge, Montpellier' },
+          ],
           pmrAccessibility: true,
         });
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual({
         preferredModes: ['Bus', 'Vélo'],
-        favoriteAddresses: [{ label: 'Maison', address: '1 rue de la Loge, Montpellier' }],
+        favoriteAddresses: [
+          { label: 'Maison', address: '1 rue de la Loge, Montpellier' },
+        ],
         pmrAccessibility: true,
       });
 
@@ -119,7 +123,9 @@ describe('Profile (e2e)', () => {
         });
 
       expect(response.status).toBe(200);
-      expect(response.body.favoriteAddresses).toEqual([
+      expect(
+        (response.body as { favoriteAddresses: unknown }).favoriteAddresses,
+      ).toEqual([
         { label: '', address: 'Gare de Montpellier Saint-Roch, Montpellier' },
         { label: 'Maison', address: 'Rue de la Loge, Montpellier' },
       ]);
@@ -150,7 +156,9 @@ describe('Profile (e2e)', () => {
       await request(app.getHttpServer())
         .patch('/profile')
         .set('Authorization', `Bearer ${daveToken}`)
-        .send({ favoriteAddresses: [{ label: 'Maison', address: "Dave's home" }] });
+        .send({
+          favoriteAddresses: [{ label: 'Maison', address: "Dave's home" }],
+        });
 
       const erinProfile = await request(app.getHttpServer())
         .get('/profile')
@@ -164,7 +172,9 @@ describe('Profile (e2e)', () => {
       await request(app.getHttpServer())
         .patch('/profile')
         .set('Authorization', `Bearer ${erinToken}`)
-        .send({ favoriteAddresses: [{ label: 'Maison', address: "Erin's home" }] });
+        .send({
+          favoriteAddresses: [{ label: 'Maison', address: "Erin's home" }],
+        });
 
       const daveProfile = await request(app.getHttpServer())
         .get('/profile')

@@ -120,7 +120,12 @@ export function ProfileForm({ profile, saving, error, onSave }: ProfileFormProps
           Ajouter une adresse
         </button>
 
+        {/* key on modalOpen remounts the modal each time it opens, so its
+            draft state starts fresh — a cancelled attempt never leaks into the
+            next one. React's own answer to resetting state on a prop change,
+            instead of an effect full of setState calls. */}
         <FavoriteAddressModal
+          key={String(modalOpen)}
           open={modalOpen}
           onClose={() => setModalOpen(false)}
           onAdd={addFavorite}

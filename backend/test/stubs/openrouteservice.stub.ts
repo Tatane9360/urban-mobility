@@ -1,5 +1,8 @@
 import { OpenRouteService } from '../../src/integration/openrouteservice.service';
-import { OrsProfile, OrsRoute } from '../../src/integration/openrouteservice.types';
+import {
+  OrsProfile,
+  OrsRoute,
+} from '../../src/integration/openrouteservice.types';
 import { GeoPoint } from '../../src/routing/geo-point';
 import { haversineDistanceMeters } from '../../src/routing/geo-distance';
 

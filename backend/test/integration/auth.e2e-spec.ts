@@ -266,7 +266,12 @@ describe('Auth (e2e)', () => {
         .set('Authorization', `Bearer ${token}`)
         .send({
           preferredModes: ['Tram'],
-          favoriteAddresses: [{ label: 'Centre-ville', address: 'Place de la Comedie, Montpellier' }],
+          favoriteAddresses: [
+            {
+              label: 'Centre-ville',
+              address: 'Place de la Comedie, Montpellier',
+            },
+          ],
         })
         .expect(200);
       await saveJourney(token);

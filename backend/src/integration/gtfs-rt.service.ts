@@ -111,10 +111,16 @@ export class GtfsRtService implements OnModuleInit {
       // A feed group that answered nothing must not overwrite what it holds
       // with an empty result that still looks fresh — the delay index in
       // particular, since an empty Map reads as "no train is late".
-      if (vehicleFeeds.failures.length > 0 && vehicleFeeds.entities.length === 0) {
+      if (
+        vehicleFeeds.failures.length > 0 &&
+        vehicleFeeds.entities.length === 0
+      ) {
         throw new Error(vehicleFeeds.failures[0]);
       }
-      if (tripUpdateFeeds.failures.length > 0 && tripUpdateFeeds.entities.length === 0) {
+      if (
+        tripUpdateFeeds.failures.length > 0 &&
+        tripUpdateFeeds.entities.length === 0
+      ) {
         throw new Error(tripUpdateFeeds.failures[0]);
       }
 

@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform, Type } from 'class-transformer';
+import { Transform } from 'class-transformer';
 import {
   IsArray,
   IsBoolean,
@@ -12,7 +12,10 @@ import {
 import { TransportMode } from '../../common/transport-mode.enum';
 
 export class FavoriteAddressDto {
-  @ApiPropertyOptional({ description: 'Short name the user picked', example: 'Maison' })
+  @ApiPropertyOptional({
+    description: 'Short name the user picked',
+    example: 'Maison',
+  })
   @IsString()
   label!: string;
 
@@ -30,8 +33,13 @@ export class FavoriteAddressDto {
 // PATCH that edits one favorite must not 400 on every legacy sibling still
 // sitting in the array — each string upgrades in place to {label: '',
 // address}, same shape a plain address entry from that era actually meant.
-function upgradeLegacyEntry(entry: unknown): unknown {
-  return typeof entry === 'string' ? { label: '', address: entry } : entry;
+function upgradeLegacyEntry(entry: unknown): FavoriteAddressDto {
+  const source =
+    typeof entry === 'string' ? { label: '', address: entry } : entry;
+  // Object.assign onto a real instance so ValidateNested sees a
+  // FavoriteAddressDto and applies its decorators. A non-object entry stays
+  // empty here and fails @IsString below, which is the intended 400.
+  return Object.assign(new FavoriteAddressDto(), source);
 }
 
 export class UpdateProfileDto {
@@ -52,10 +60,8 @@ export class UpdateProfileDto {
   })
   @IsOptional()
   @IsArray()
-  @Transform(({ value }) =>
-    Array.isArray(value)
-      ? value.map((entry) => Object.assign(new FavoriteAddressDto(), upgradeLegacyEntry(entry)))
-      : value,
+  @Transform(({ value }: { value: unknown }) =>
+    Array.isArray(value) ? value.map(upgradeLegacyEntry) : value,
   )
   @ValidateNested({ each: true })
   favoriteAddresses?: FavoriteAddressDto[];

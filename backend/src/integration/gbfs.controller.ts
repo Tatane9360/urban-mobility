@@ -19,7 +19,11 @@ export class GbfsController {
   constructor(private readonly gbfsService: GbfsService) {}
 
   @ApiOperation({ summary: 'Bike-share stations with their live availability' })
-  @ApiResponse({ status: 200, description: 'Stations with current status and the snapshot\'s fetch time, empty until the first successful GBFS poll' })
+  @ApiResponse({
+    status: 200,
+    description:
+      "Stations with current status and the snapshot's fetch time, empty until the first successful GBFS poll",
+  })
   @Get()
   current(): BikeStationsResponse {
     const snapshot = this.gbfsService.getSnapshot();

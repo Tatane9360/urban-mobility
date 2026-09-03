@@ -47,16 +47,9 @@ export function FavoriteAddressModal({ open, onClose, onAdd, takenLabels }: Favo
     if (!open && dialog.open) dialog.close();
   }, [open]);
 
-  // Reset the draft each time the modal opens, so a cancelled attempt never
-  // leaks into the next one.
-  useEffect(() => {
-    if (!open) return;
-    setSelectedKind(null);
-    setAddress('');
-    setError(null);
-    setSuggestionsOpen(false);
-    setActiveIndex(-1);
-  }, [open]);
+  // No reset effect here: ProfileForm keys this component on its open state,
+  // so each opening mounts a fresh instance and every useState above starts
+  // at its initial value.
 
   function commit(resolvedAddress: string) {
     if (!selectedKind) {
