@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { CaretLeft, CaretRight, X } from '@phosphor-icons/react/dist/ssr';
+import { CaretLeft, CaretRight, Check, X } from '@phosphor-icons/react/dist/ssr';
 import type { NavStep } from '../navigation-steps';
 
 function formatDistance(meters: number): string {
@@ -14,9 +14,24 @@ interface NavigationOverlayProps {
   onPrevious: () => void;
   onNext: () => void;
   onExit: () => void;
+  // Present only for a logged-in user (see JourneyPlannerScreen) — a guest
+  // has no history to save the trip into, so the last step just stays a
+  // disabled "Suivant" for them, same as today.
+  onFinish?: () => void;
+  // Set when the last save attempt (onFinish) failed — keeps the walkthrough
+  // open with the reason instead of losing a finished trip silently.
+  finishError?: string | null;
 }
 
-export function NavigationOverlay({ steps, currentIndex, onPrevious, onNext, onExit }: NavigationOverlayProps) {
+export function NavigationOverlay({
+  steps,
+  currentIndex,
+  onPrevious,
+  onNext,
+  onExit,
+  onFinish,
+  finishError,
+}: NavigationOverlayProps) {
   const headingRef = useRef<HTMLSpanElement>(null);
   const step = steps[currentIndex];
 
@@ -83,16 +98,33 @@ export function NavigationOverlay({ steps, currentIndex, onPrevious, onNext, onE
           <CaretLeft size={14} weight="bold" />
           Précédent
         </button>
-        <button
-          type="button"
-          onClick={onNext}
-          disabled={currentIndex === steps.length - 1}
-          className="flex items-center gap-1 rounded-md bg-accent px-2.5 py-1.5 text-sm font-medium text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          Suivant
-          <CaretRight size={14} weight="bold" />
-        </button>
+        {currentIndex === steps.length - 1 && onFinish ? (
+          <button
+            type="button"
+            onClick={onFinish}
+            className="flex items-center gap-1 rounded-md bg-accent px-2.5 py-1.5 text-sm font-medium text-white transition-colors hover:bg-accent-hover"
+          >
+            Trajet terminé
+            <Check size={14} weight="bold" />
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onNext}
+            disabled={currentIndex === steps.length - 1}
+            className="flex items-center gap-1 rounded-md bg-accent px-2.5 py-1.5 text-sm font-medium text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Suivant
+            <CaretRight size={14} weight="bold" />
+          </button>
+        )}
       </div>
+
+      {finishError && (
+        <p role="alert" className="text-xs text-red-700 dark:text-red-400">
+          {finishError}
+        </p>
+      )}
     </div>
   );
 }

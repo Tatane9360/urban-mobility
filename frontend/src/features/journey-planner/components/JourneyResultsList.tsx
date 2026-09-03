@@ -10,8 +10,7 @@ interface JourneyResultsListProps {
   hasSearched: boolean;
   selectedIndex: number | null;
   onSelect: (index: number) => void;
-  canSave: boolean;
-  onSaveJourney?: (journey: Journey) => Promise<void>;
+  isLoggedIn: boolean;
   onStartNavigation: (journey: Journey) => void;
   // Replays the last search.
   onRetry?: () => void;
@@ -36,8 +35,7 @@ export function JourneyResultsList({
   hasSearched,
   selectedIndex,
   onSelect,
-  canSave,
-  onSaveJourney,
+  isLoggedIn,
   onStartNavigation,
   onRetry,
 }: JourneyResultsListProps) {
@@ -74,10 +72,10 @@ export function JourneyResultsList({
               hatch has to differ — offering one that leads nowhere is worse
               than offering none. */}
           <Link
-            href={canSave ? '/history' : '/register'}
+            href={isLoggedIn ? '/history' : '/register'}
             className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-700 transition-colors hover:bg-red-100 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-950/50"
           >
-            {canSave ? 'Voir mes itinéraires enregistrés' : 'Créer un compte pour enregistrer vos trajets'}
+            {isLoggedIn ? 'Voir mes itinéraires enregistrés' : 'Créer un compte pour enregistrer vos trajets'}
           </Link>
         </div>
       </div>
@@ -95,7 +93,7 @@ export function JourneyResultsList({
         <ul className="list-disc pl-5 text-zinc-600 dark:text-zinc-400">
           <li>Vérifiez les adresses de départ et d&apos;arrivée.</li>
           <li>Essayez une autre heure de départ : le réseau circule moins la nuit.</li>
-          {canSave ? (
+          {isLoggedIn ? (
             <li>Élargissez vos modes de transport préférés depuis votre profil.</li>
           ) : (
             <li>Rapprochez le départ ou l&apos;arrivée d&apos;un arrêt de tram ou de bus.</li>
@@ -140,12 +138,7 @@ export function JourneyResultsList({
           ? '1 itinéraire trouvé.'
           : `${journeys.length} itinéraires trouvés.`}
       </p>
-      <JourneyResultCard
-        journey={journey}
-        canSave={canSave}
-        onSave={onSaveJourney ? () => onSaveJourney(journey) : undefined}
-        onStartNavigation={() => onStartNavigation(journey)}
-      />
+      <JourneyResultCard journey={journey} onStartNavigation={() => onStartNavigation(journey)} />
 
       {alternatives.length > 0 && (
         <section aria-label="Autres itinéraires" className="flex flex-col gap-2">

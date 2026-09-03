@@ -32,8 +32,8 @@ export function SavedJourneysList({ journeys, loading, onDelete }: SavedJourneys
   if (journeys.length === 0) {
     return (
       <p className="rounded-lg border border-dashed border-zinc-200 p-4 text-sm text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
-        Aucun itinéraire sauvegardé pour le moment. Depuis le planificateur, cliquez sur l&apos;icône de
-        sauvegarde d&apos;un résultat pour le retrouver ici.
+        Aucun itinéraire sauvegardé pour le moment. Terminez un trajet depuis le planificateur pour le
+        retrouver ici.
       </p>
     );
   }

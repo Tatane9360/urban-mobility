@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import dynamic from 'next/dynamic';
+import { useRouter } from 'next/navigation';
 import { ArrowsOutSimple, ArrowsInSimple, Crosshair } from '@phosphor-icons/react/dist/ssr';
 import { AlertsBanner } from './AlertsBanner';
 import { JourneySearchForm } from './JourneySearchForm';
@@ -30,6 +31,7 @@ const JourneyMap = dynamic(() => import('./JourneyMap').then((m) => m.JourneyMap
 });
 
 export function JourneyPlannerScreen() {
+  const router = useRouter();
   const { token } = useAuth();
   const { profile } = useProfile();
   const { journeys, loading, error, sort, setSort, search, retry } = useJourneyPlanner();
@@ -52,6 +54,7 @@ export function JourneyPlannerScreen() {
   const [nearbyOrigin, setNearbyOrigin] = useState<Coordinates | null>(null);
   const [nearbyStations, setNearbyStations] = useState<(BikeStation & { distanceMeters: number })[]>([]);
   const [bikeStationsFetchedAt, setBikeStationsFetchedAt] = useState<string | null>(null);
+  const [finishError, setFinishError] = useState<string | null>(null);
 
   // Typing (or geocoding) over a picked point drops its label, handing the
   // text box back to what the user is typing.
@@ -98,20 +101,37 @@ export function JourneyPlannerScreen() {
     void search(...args).then((results) => setSelectedIndex(results.length > 0 ? 0 : null));
   }
 
-  async function handleSaveJourney(journey: Journey) {
-    if (!token) return;
-    await saveJourney(token, journey);
-  }
-
   function handleStartNavigation(journey: Journey) {
     setNavigatingJourney(journey);
     setNavStepIndex(0);
     setMapExpanded(true);
+    setFinishError(null);
   }
 
   function handleExitNavigation() {
     setNavigatingJourney(null);
     setMapExpanded(false);
+  }
+
+  // A trip only enters the user's history once they've actually completed
+  // it — not just searched for it (see NavigationOverlay.onFinish). A failed
+  // save keeps the walkthrough open with an inline error instead of
+  // redirecting anyway, so a finished trip is never silently lost.
+  async function handleFinishNavigation() {
+    if (!token || !navigatingJourney) return;
+    try {
+      await saveJourney(token, navigatingJourney);
+      handleExitNavigation();
+      // setTimeout, not a direct call: handleExitNavigation's setNavigatingJourney(null)
+      // still has to flow through a React re-render (JourneyMap loses its
+      // currentPosition/journey props and repositions its Leaflet markers).
+      // Navigating away in the same tick can unmount the map mid-update, and
+      // Leaflet then reaches into a DOM node React already detached — a
+      // "Cannot read properties of undefined (reading '_leaflet_pos')" crash.
+      setTimeout(() => router.push('/history'), 0);
+    } catch {
+      setFinishError("Impossible d'enregistrer ce trajet. Réessayez.");
+    }
   }
 
   const selectedJourney = selectedIndex !== null ? (journeys[selectedIndex] ?? null) : null;
@@ -160,6 +180,8 @@ export function JourneyPlannerScreen() {
             onPrevious={() => setNavStepIndex((i) => Math.max(0, i - 1))}
             onNext={() => setNavStepIndex((i) => Math.min(navSteps.length - 1, i + 1))}
             onExit={handleExitNavigation}
+            onFinish={token ? handleFinishNavigation : undefined}
+            finishError={finishError}
           />
         ) : (
           <div className="absolute right-3 top-3 flex gap-2">
@@ -235,8 +257,7 @@ export function JourneyPlannerScreen() {
           hasSearched={hasSearched}
           selectedIndex={selectedIndex}
           onSelect={setSelectedIndex}
-          canSave={token !== null}
-          onSaveJourney={token ? handleSaveJourney : undefined}
+          isLoggedIn={token !== null}
           onStartNavigation={handleStartNavigation}
           onRetry={retry}
         />
