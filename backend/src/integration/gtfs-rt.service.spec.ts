@@ -368,11 +368,68 @@ describe('GtfsRtService', () => {
     expect(service.isFresh(new Date(fetchedAt.getTime() + 600_000))).toBe(
       false,
     );
-    // A stale snapshot serves no alerts either — an expired disruption banner
-    // is misinformation, not degraded service.
-    expect(
-      service.getActiveAlerts(new Date(fetchedAt.getTime() + 600_000)),
-    ).toEqual([]);
+  });
+
+  it('still serves alerts when the vehicle snapshot has gone stale', async () => {
+    // These are throttled independently: TaM answering 429 on
+    // VehiclePosition.pb says nothing about whether a tram line is disrupted.
+    // Gating alerts on that snapshot's age turned a stale-position problem
+    // into "no disruption on the network", which is a false all-clear.
+    global.fetch = mockFetchByFeed({
+      alert: [
+        {
+          id: 'ALERT_1',
+          alert: {
+            activePeriod: [{ start: 1783620000, end: 1783630000 }],
+            informedEntity: [{ routeId: 'L1' }],
+            headerText: { translation: [{ text: 'Travaux', language: 'fr' }] },
+          },
+        },
+      ],
+    });
+    const service = new GtfsRtService(mockConfig());
+    await service.refreshAlerts();
+    await service.refresh();
+
+    const fetchedAt = service.getSnapshot()!.fetchedAt;
+    const wellPastStale = new Date(fetchedAt.getTime() + 600_000);
+    expect(service.isFresh(wellPastStale)).toBe(false);
+
+    // The alert's own activePeriod is what decides, not the snapshot's age.
+    const duringAlert = new Date(1783625000 * 1000);
+    expect(service.getActiveAlerts(duringAlert).map((a) => a.id)).toEqual([
+      'ALERT_1',
+    ]);
+    // And an expired one is still filtered out, stale snapshot or not.
+    expect(service.getActiveAlerts(new Date(1783640000 * 1000))).toEqual([]);
+  });
+
+  it('keeps one network’s alerts when the other feed fails', async () => {
+    // Promise.all here used to discard Suburbain's disruptions because Urbain
+    // answered 429.
+    const alertEntity = {
+      id: 'ALERT_SUB',
+      alert: {
+        informedEntity: [{ routeId: 'L1' }],
+        headerText: { translation: [{ text: 'Déviation', language: 'fr' }] },
+      },
+    };
+    global.fetch = jest.fn((url: string) => {
+      // Suburbain/Alert.pb is the one that answers; Urbain is throttled.
+      if (url.includes('Alert')) {
+        return Promise.resolve(
+          url.includes('Suburbain')
+            ? pbResponse(encodeFeed([alertEntity]))
+            : ({ ok: false, status: 429 } as unknown as Response),
+        );
+      }
+      return Promise.resolve(pbResponse(encodeFeed([])));
+    });
+
+    const service = new GtfsRtService(mockConfig());
+    await service.refreshAlerts();
+
+    expect(service.getActiveAlerts().map((a) => a.id)).toEqual(['ALERT_SUB']);
   });
 
   it('does not refetch the Alert feed on the 15s refresh, and keeps serving the cached alerts', async () => {

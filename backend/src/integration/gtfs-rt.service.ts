@@ -94,6 +94,10 @@ export class GtfsRtService implements OnModuleInit {
   async onModuleInit(): Promise<void> {
     // Alerts first, so the very first snapshot already carries them.
     await this.refreshAlerts();
+    // The change-only log below stays silent when boot finds zero alerts and
+    // the count started at zero — which is the common case, and the one that
+    // leaves "am I getting alerts at all?" unanswered. State it once at boot.
+    this.logger.log(`GTFS-RT alerts at startup: ${this.alerts.length}`);
     await this.refresh();
   }
 
@@ -153,19 +157,41 @@ export class GtfsRtService implements OnModuleInit {
 
   @Interval(ALERT_POLL_INTERVAL_MS)
   async refreshAlerts(): Promise<void> {
-    try {
-      const alertFeeds = await Promise.all(
-        this.alertUrls.map((u) => this.fetchFeed(u)),
-      );
-      this.alerts = alertFeeds.flatMap(toServiceAlerts);
-      // The live snapshot must see the new list without waiting for the next
-      // 15s refresh — otherwise a just-published disruption stays invisible.
-      if (this.snapshot) {
-        this.snapshot = { ...this.snapshot, alerts: this.alerts };
-      }
-    } catch (err) {
+    // fetchFeeds, not Promise.all: TaM throttles the two networks
+    // independently, and one 429 on Urbain used to discard Suburbain's
+    // disruptions along with it.
+    const { entities, failures } = await this.fetchFeeds(this.alertUrls);
+
+    // Every feed failed: keep the previous list rather than replacing it with
+    // an empty one that would read as "nothing is disrupted".
+    if (failures.length > 0 && entities.length === 0) {
       this.logger.error(
-        `GTFS-RT alert refresh failed, keeping previous alerts: ${(err as Error).message}`,
+        `GTFS-RT alert refresh failed, keeping ${this.alerts.length} previous alert(s): ${failures.join('; ')}`,
+      );
+      return;
+    }
+
+    const previousCount = this.alerts.length;
+    this.alerts = entities.flatMap(toServiceAlerts);
+    // The live snapshot must see the new list without waiting for the next
+    // refresh — otherwise a just-published disruption stays invisible.
+    if (this.snapshot) {
+      this.snapshot = { ...this.snapshot, alerts: this.alerts };
+    }
+
+    if (failures.length > 0) {
+      this.logger.warn(
+        `GTFS-RT alert partial refresh, ${failures.length} feed(s) unavailable: ${failures.join('; ')}`,
+      );
+    }
+
+    // Logged on change only. A line every 5 minutes saying the same number
+    // would be noise; without any line at all, an empty feed and a silently
+    // broken parse look identical from the outside — which is exactly the
+    // question "why do I never see an alert?" could not answer.
+    if (this.alerts.length !== previousCount) {
+      this.logger.log(
+        `GTFS-RT alerts: ${this.alerts.length} published (was ${previousCount})`,
       );
     }
   }
@@ -186,11 +212,17 @@ export class GtfsRtService implements OnModuleInit {
 
   // Alerts whose active period covers `now`. An alert with no bounds is
   // treated as currently active — GTFS-RT's own reading of an absent
-  // activePeriod. Returns nothing on a stale snapshot, for the same reason
-  // isFresh exists: an expired disruption is misinformation.
+  // activePeriod.
+  //
+  // Read from this.alerts, NOT from the snapshot, and deliberately not gated on
+  // isFresh(): that measures the vehicle/delay snapshot, which TaM throttles
+  // independently. One 429 on VehiclePosition.pb used to turn every live
+  // disruption into "no disruption" — a stale-position problem reported as a
+  // calm network, which is worse than saying nothing. Alerts carry their own
+  // activePeriod and are filtered on it below, so an expired one cannot show
+  // through however old the list is.
   getActiveAlerts(now: Date = new Date()): ServiceAlert[] {
-    if (!this.isFresh(now)) return [];
-    return this.snapshot!.alerts.filter(
+    return this.alerts.filter(
       (a) =>
         (a.activeFrom === null || a.activeFrom <= now) &&
         (a.activeUntil === null || a.activeUntil >= now),
