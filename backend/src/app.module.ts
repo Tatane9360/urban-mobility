@@ -1,8 +1,9 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { SentryModule, SentryGlobalFilter } from '@sentry/nestjs/setup';
+import { RequestLoggerMiddleware } from './common/request-logger.middleware';
 import { DatabaseModule } from './database/database.module';
 import { IntegrationModule } from './integration/integration.module';
 import { AuthModule } from './auth/auth.module';
@@ -43,4 +44,8 @@ import { JourneysModule } from './journeys/journeys.module';
     { provide: APP_FILTER, useClass: SentryGlobalFilter },
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(RequestLoggerMiddleware).forRoutes('*');
+  }
+}
