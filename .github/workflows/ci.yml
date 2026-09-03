@@ -53,6 +53,17 @@ jobs:
         working-directory: backend
       - run: pnpm test
         working-directory: backend
+      # Proves the migrations build the schema from nothing, on a database the
+      # e2e suites never touch. A migration that only works against a schema
+      # synchronize already created would otherwise fail on the first real
+      # deployment instead of here.
+      - name: Check the migrations run on a pristine database
+        run: |
+          PGPASSWORD=urbanmobility psql -h localhost -U urbanmobility -d postgres \
+            -c "CREATE DATABASE urbanmobility_migrations;"
+          DB_NAME=urbanmobility_migrations pnpm migration:run
+          DB_NAME=urbanmobility_migrations pnpm migration:revert
+        working-directory: backend
       # The e2e suites need PostGIS and uuid-ossp, and TRUNCATE shared tables
       # between specs. The service container above is created fresh for this
       # job and thrown away with it, so there is nothing here to protect.

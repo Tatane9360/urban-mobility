@@ -33,6 +33,32 @@ pnpm run start:prod    # depuis dist/ (après build)
 
 L'API écoute par défaut sur le port 3000.
 
+## Migrations de schéma
+
+Le schéma est décrit par des migrations versionnées dans `src/migrations/`.
+En `development` et `test`, TypeORM synchronise encore le schéma au démarrage
+(base jetable) ; partout ailleurs — production incluse — c'est `migration:run`
+qui crée et fait évoluer les tables.
+
+```bash
+pnpm run migration:show      # ce qui est appliqué / en attente
+pnpm run migration:run       # applique les migrations manquantes
+pnpm run migration:revert    # annule la dernière
+```
+
+Après avoir modifié une entité :
+
+```bash
+pnpm run migration:generate src/migrations/NomDuChangement
+```
+
+TypeORM compare les entités à la base et écrit le SQL correspondant.
+**Relire le fichier généré avant de le commiter** : un renommage de colonne est
+produit comme un `DROP` suivi d'un `ADD`, ce qui perd les données — le
+remplacer par un `ALTER TABLE ... RENAME COLUMN`.
+
+Un déploiement doit lancer `pnpm run migration:run` avant de démarrer l'API.
+
 ## Import des données GTFS
 
 ```bash
