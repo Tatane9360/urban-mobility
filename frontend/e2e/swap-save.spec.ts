@@ -38,11 +38,11 @@ test('swaps origin and destination', async ({ page }) => {
 });
 
 test('says so when saving a journey fails', async ({ page }) => {
+  // A journey reaches the history when the trip is finished, not when it is
+  // searched: the save fires from the navigation walkthrough's "Trajet
+  // terminé", so that is the path this drives.
   await page.route('**/geocode*', (r) => r.fulfill({ json: [A] }));
-  await page.route('**/journeys', (r) =>
-    r.request().method() === 'POST' && !r.request().url().includes('saved')
-      ? r.fulfill({ json: [JOURNEY] })
-      : r.fulfill({ status: 500, json: {} }));
+  await page.route('**/journeys', (r) => r.fulfill({ json: [JOURNEY] }));
   await page.route('**/journeys/saved', (r) => r.fulfill({ status: 500, json: {} }));
   await page.route('**/auth/me', (r) => r.fulfill({ json: { id: 'u1', email: 'a@b.com' } }));
   await page.addInitScript(() => localStorage.setItem('urbanflow.accessToken', 't'));
@@ -54,7 +54,14 @@ test('says so when saving a journey fails', async ({ page }) => {
   await page.getByRole('option', { name: A.displayName }).click();
   await page.getByRole('button', { name: 'Rechercher' }).click();
 
-  await page.getByRole('button', { name: 'Sauvegarder cet itinéraire' }).click();
+  await page.getByRole('button', { name: /Démarrer l'itinéraire/ }).first().click();
+  // JOURNEY has a single segment, so the walkthrough opens on its only step
+  // and the finish button is there straight away.
+  await page.getByRole('button', { name: /Trajet terminé/ }).click();
 
-  await expect(page.locator('main').getByRole('alert')).toContainText("Impossible d'enregistrer");
+  // The failed save keeps the walkthrough open with an inline error rather
+  // than redirecting to a history that never received the trip.
+  // .first(): Next renders its own empty role="alert" route announcer.
+  await expect(page.getByRole('alert').first()).toContainText("Impossible d'enregistrer");
+  await expect(page).toHaveURL(/\/$/);
 });
