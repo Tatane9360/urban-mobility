@@ -93,6 +93,24 @@ export interface ServiceAlert {
   activeUntil: string | null;
 }
 
+// Mirrors backend/src/integration/gbfs.controller.ts. Status fields are
+// absent until the first successful GBFS poll (see GbfsService.getSnapshot).
+export interface BikeStation {
+  stationId: string;
+  name: string;
+  lat: number;
+  lon: number;
+  bikesAvailable?: number;
+  docksAvailable?: number;
+  isRenting?: boolean;
+}
+
+export interface BikeStationsResponse {
+  // ISO string, or null before the first successful GBFS poll.
+  fetchedAt: string | null;
+  stations: BikeStation[];
+}
+
 // Mirrors backend/src/routing/journey.ts
 export interface Journey {
   segments: JourneySegment[];
@@ -110,4 +128,4 @@ export interface GeocodeResult {
 }
 
 // Which field a map click fills, or null when "pick on the map" is off.
-export type MapPickTarget = 'origin' | 'destination' | null;
+export type MapPickTarget = 'origin' | 'destination' | 'nearby-stations' | null;

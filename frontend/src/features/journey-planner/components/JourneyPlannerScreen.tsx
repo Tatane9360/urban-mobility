@@ -2,19 +2,20 @@
 
 import { useState } from 'react';
 import dynamic from 'next/dynamic';
-import { ArrowsOutSimple, ArrowsInSimple } from '@phosphor-icons/react/dist/ssr';
+import { ArrowsOutSimple, ArrowsInSimple, Crosshair } from '@phosphor-icons/react/dist/ssr';
 import { AlertsBanner } from './AlertsBanner';
 import { JourneySearchForm } from './JourneySearchForm';
 import { JourneyResultsList } from './JourneyResultsList';
 import { ModePicker } from './ModePicker';
 import { NavigationOverlay } from './NavigationOverlay';
+import { NearbyStationsList } from './NearbyStationsList';
 import { useJourneyPlanner } from '../hooks/useJourneyPlanner';
 import { useAuth } from '../../auth/hooks/useAuth';
 import { useProfile } from '../../profile/hooks/useProfile';
 import { saveJourney } from '../api/save-journey';
 import { buildNavigationSteps } from '../navigation-steps';
 import { formatCoordinates } from '../format-coordinates';
-import type { Coordinates, Journey, JourneyPoint, MapPickTarget } from '../types';
+import type { BikeStation, Coordinates, Journey, JourneyPoint, MapPickTarget } from '../types';
 
 // Leaflet touches `window` at import time — must stay out of the server bundle.
 // The loading placeholder matters beyond UX: without it, Lighthouse picks the
@@ -46,6 +47,11 @@ export function JourneyPlannerScreen() {
     origin: null,
     destination: null,
   });
+  // Simulated "my position" for "stations near me" — no real GPS in this demo,
+  // so the user clicks a point on the map instead (see JourneyMap.nearbyOrigin).
+  const [nearbyOrigin, setNearbyOrigin] = useState<Coordinates | null>(null);
+  const [nearbyStations, setNearbyStations] = useState<(BikeStation & { distanceMeters: number })[]>([]);
+  const [bikeStationsFetchedAt, setBikeStationsFetchedAt] = useState<string | null>(null);
 
   // Typing (or geocoding) over a picked point drops its label, handing the
   // text box back to what the user is typing.
@@ -65,10 +71,24 @@ export function JourneyPlannerScreen() {
 
   function handleMapPick(point: Coordinates) {
     if (!pickTarget) return;
+    if (pickTarget === 'nearby-stations') {
+      setNearbyOrigin(point);
+      setPickTarget(null);
+      return;
+    }
     const setPoint = pickTarget === 'origin' ? setOrigin : setDestination;
     setPoint({ coordinates: point });
     setPickedLabels((labels) => ({ ...labels, [pickTarget]: formatCoordinates(point) }));
     setPickTarget(null);
+  }
+
+  function toggleNearbyStations() {
+    if (pickTarget === 'nearby-stations') {
+      setPickTarget(null);
+    } else {
+      setNearbyOrigin(null);
+      setPickTarget('nearby-stations');
+    }
   }
 
   function handleSearch(...args: Parameters<typeof search>) {
@@ -112,13 +132,18 @@ export function JourneyPlannerScreen() {
           focusBounds={navigatingJourney ? navSteps[navStepIndex]?.bounds : undefined}
           currentPosition={navigatingJourney ? navSteps[navStepIndex]?.currentPosition : undefined}
           onPick={pickTarget ? handleMapPick : undefined}
+          nearbyOrigin={nearbyOrigin}
+          onNearbyStationsChange={setNearbyStations}
+          onBikeStationsFetchedAtChange={setBikeStationsFetchedAt}
         />
         {pickTarget && (
           <div
             role="status"
             className="absolute left-1/2 top-3 z-[1000] flex -translate-x-1/2 items-center gap-3 rounded-full border border-zinc-200 bg-white/95 py-1.5 pl-4 pr-1.5 text-sm text-zinc-700 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/95 dark:text-zinc-300"
           >
-            Cliquez pour choisir {pickTarget === 'origin' ? 'le départ' : "l'arrivée"}
+            {pickTarget === 'nearby-stations'
+              ? 'Cliquez sur la carte pour simuler votre position'
+              : `Cliquez pour choisir ${pickTarget === 'origin' ? 'le départ' : "l'arrivée"}`}
             <button
               type="button"
               onClick={() => setPickTarget(null)}
@@ -137,14 +162,29 @@ export function JourneyPlannerScreen() {
             onExit={handleExitNavigation}
           />
         ) : (
-          <button
-            type="button"
-            onClick={() => setMapExpanded((v) => !v)}
-            aria-label={mapExpanded ? 'Réduire la carte' : 'Agrandir la carte'}
-            className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-700 shadow-sm transition-colors hover:bg-zinc-50 lg:hidden dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
-          >
-            {mapExpanded ? <ArrowsInSimple size={16} /> : <ArrowsOutSimple size={16} />}
-          </button>
+          <div className="absolute right-3 top-3 flex gap-2">
+            <button
+              type="button"
+              onClick={toggleNearbyStations}
+              aria-pressed={pickTarget === 'nearby-stations'}
+              aria-label="Chercher des stations de vélo proches"
+              className={`flex h-9 w-9 items-center justify-center rounded-full border shadow-sm transition-colors ${
+                pickTarget === 'nearby-stations'
+                  ? 'border-accent bg-accent/10 text-accent'
+                  : 'border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800'
+              }`}
+            >
+              <Crosshair size={16} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setMapExpanded((v) => !v)}
+              aria-label={mapExpanded ? 'Réduire la carte' : 'Agrandir la carte'}
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-700 shadow-sm transition-colors hover:bg-zinc-50 lg:hidden dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            >
+              {mapExpanded ? <ArrowsInSimple size={16} /> : <ArrowsOutSimple size={16} />}
+            </button>
+          </div>
         )}
       </div>
 
@@ -154,6 +194,21 @@ export function JourneyPlannerScreen() {
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 md:text-3xl dark:text-zinc-50">
           Planifier un trajet
         </h1>
+        {nearbyOrigin && (
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-medium text-zinc-900 dark:text-zinc-50">Stations proches</h2>
+              <button
+                type="button"
+                onClick={() => setNearbyOrigin(null)}
+                className="text-xs font-medium text-zinc-500 transition-colors hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+              >
+                Fermer
+              </button>
+            </div>
+            <NearbyStationsList stations={nearbyStations} fetchedAt={bikeStationsFetchedAt} />
+          </div>
+        )}
         <AlertsBanner />
         <JourneySearchForm
           sort={sort}
