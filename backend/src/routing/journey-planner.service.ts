@@ -13,6 +13,7 @@ import { GeoPoint } from './geo-point';
 import { haversineDistanceMeters } from './geo-distance';
 import { Journey } from './journey';
 import { RawJourneySegment } from './journey-segment';
+import { MobilityProvider } from './mobility-provider';
 import { PlanJourneyDto, JourneySortCriterion } from './dto/plan-journey.dto';
 import { WalkMobilityProvider } from './walk.mobility-provider';
 
@@ -22,16 +23,24 @@ const NEGLIGIBLE_WALK_METERS = 10;
 
 @Injectable()
 export class JourneyPlannerService {
+  // Every MobilityProvider, asked uniformly. The walk provider is also held by
+  // name because bridging is the planner's own job, not a mode's: any
+  // provider's candidate may need a Marche segment at either end to reach the
+  // actual search points.
+  private readonly providers: MobilityProvider[];
+
   constructor(
     private readonly geocodingService: GeocodingService,
     private readonly gtfsRtService: GtfsRtService,
     private readonly carbonService: CarbonService,
-    private readonly busTramProvider: BusTramMobilityProvider,
-    private readonly bikeProvider: BikeMobilityProvider,
+    busTramProvider: BusTramMobilityProvider,
+    bikeProvider: BikeMobilityProvider,
     private readonly walkProvider: WalkMobilityProvider,
     @InjectRepository(MobilityProfile)
     private readonly profileRepository: Repository<MobilityProfile>,
-  ) {}
+  ) {
+    this.providers = [busTramProvider, bikeProvider, walkProvider];
+  }
 
   async plan(
     dto: PlanJourneyDto,
@@ -51,53 +60,29 @@ export class JourneyPlannerService {
     const degraded = !this.gtfsRtService.isFresh();
     const alerts = this.gtfsRtService.getActiveAlerts();
 
-    // A direct Marche candidate is computed alongside Bus/Tram and Vélo,
-    // always — not just as a last-resort fallback — so the UI can offer a
-    // real "walk only" option (with its own duration) even when a faster
-    // multimodal Journey exists, per the mode-icon picker (like Google Maps'
-    // per-mode duration row).
     const modes = this.resolveModes(dto);
     const preferred = await this.preferredModesFor(userId);
     const wanted = (mode: TransportMode) => modes === null || modes.has(mode);
-    // A mode nobody asked for isn't queried at all — the filter saves the
-    // provider call, it doesn't discard its result afterwards.
-    const [transitSegments, bikeSegments, walkSegments] = await Promise.all([
-      wanted(TransportMode.Tram) || wanted(TransportMode.Bus)
-        ? this.busTramProvider.getSegments(origin, destination, departureTime)
-        : [],
-      wanted(TransportMode.Velo)
-        ? this.bikeProvider.getSegments(origin, destination, departureTime)
-        : [],
-      wanted(TransportMode.Marche)
-        ? this.walkProvider.getSegments(origin, destination, departureTime)
-        : [],
-    ]);
 
-    // Each transit segment is a departure in its own right (the provider
-    // returns the next few), so each becomes its own Journey alternative —
-    // unlike Vélo, whose segments form one single ride.
-    const candidates: RawJourneySegment[][] = [
-      // Tram and Bus come from the same provider, so asking for only one of
-      // them still returns both — the unwanted mode is dropped here.
-      ...withAlerts(transitSegments, alerts)
-        .filter((segment) => wanted(segment.mode))
-        .map((segment) => [segment]),
-      bikeSegments,
-    ];
+    // Every provider, asked the same question. Each decides how many Journeys
+    // its own segments make and drops the modes nobody asked for; a provider
+    // covering no wanted mode returns nothing without being queried.
+    const proposals = await Promise.all(
+      this.providers.map((provider) =>
+        provider.proposeJourneys(origin, destination, departureTime, wanted),
+      ),
+    );
 
     const journeys: Journey[] = [];
-    for (const segments of candidates) {
+    for (const segments of proposals.flat()) {
       if (segments.length === 0) continue;
       const bridged = await this.withBridgingWalks(
         origin,
         destination,
-        segments,
+        withAlerts(segments, alerts),
         departureTime,
       );
       journeys.push(this.toJourney(bridged, degraded, departureTime));
-    }
-    if (walkSegments.length > 0) {
-      journeys.push(this.toJourney(walkSegments, degraded, departureTime));
     }
 
     return sortJourneys(journeys, dto.sort, preferred);
@@ -157,6 +142,10 @@ export class JourneyPlannerService {
   // Bus/Tram and Vélo segments only cover stop-to-stop / station-to-station —
   // this adds the Marche segment on either side to reach the actual search
   // point, exactly like a real trip planner (Google Maps, etc.).
+  //
+  // Applied to every candidate, the direct Marche one included: its ends ARE
+  // the search points, so both distances are 0 and nothing is added. That is
+  // why the planner needs no per-mode exception here.
   private async withBridgingWalks(
     origin: GeoPoint,
     destination: GeoPoint,

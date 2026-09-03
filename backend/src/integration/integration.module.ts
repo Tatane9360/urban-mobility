@@ -10,6 +10,7 @@ import { GtfsStopTime } from './entities/gtfs-stop-time.entity';
 import { GtfsImportService } from './gtfs-import.service';
 import { GbfsService } from './gbfs.service';
 import { GtfsRtService } from './gtfs-rt.service';
+import { GtfsScheduleRepository } from './gtfs-schedule.repository';
 import { GeocodingService } from './geocoding.service';
 import { GeocodingController } from './geocoding.controller';
 import { AlertsController } from './alerts.controller';
@@ -33,6 +34,7 @@ import { OpenRouteService } from './openrouteservice.service';
     GtfsImportService,
     GbfsService,
     GtfsRtService,
+    GtfsScheduleRepository,
     GeocodingService,
     OpenRouteService,
   ],
@@ -40,6 +42,7 @@ import { OpenRouteService } from './openrouteservice.service';
     GtfsImportService,
     GbfsService,
     GtfsRtService,
+    GtfsScheduleRepository,
     GeocodingService,
     OpenRouteService,
   ],

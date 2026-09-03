@@ -20,10 +20,26 @@ const NEARBY_STATION_RADIUS_METERS = 1000;
 
 @Injectable()
 export class BikeMobilityProvider implements MobilityProvider {
+  readonly modes = [TransportMode.Velo] as const;
+
   constructor(
     private readonly gbfsService: GbfsService,
     private readonly openRouteService: OpenRouteService,
   ) {}
+
+  // One ride, so one candidate: unlike Bus/Tram's alternative departures, the
+  // pickup/drop-off pair is chosen by proximity and there is nothing to pick
+  // between. An empty result (no station either end) proposes nothing.
+  async proposeJourneys(
+    from: GeoPoint,
+    to: GeoPoint,
+    departureTime: Date,
+    wanted: (mode: TransportMode) => boolean,
+  ): Promise<RawJourneySegment[][]> {
+    if (!wanted(TransportMode.Velo)) return [];
+    const segments = await this.getSegments(from, to, departureTime);
+    return segments.length > 0 ? [segments] : [];
+  }
 
   // departureTime is unused: it belongs to the shared MobilityProvider
   // contract for Bus/Tram, but bike availability comes from the live GBFS

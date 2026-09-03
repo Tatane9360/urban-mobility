@@ -12,7 +12,27 @@ const WALK_SPEED_METERS_PER_SECOND = 5000 / 3600;
 
 @Injectable()
 export class WalkMobilityProvider implements MobilityProvider {
+  readonly modes = [TransportMode.Marche] as const;
+
   constructor(private readonly openRouteService: OpenRouteService) {}
+
+  // The direct walk, computed alongside Bus/Tram and Vélo rather than as a
+  // last-resort fallback, so the UI can offer a real "walk only" option with
+  // its own duration even when a faster multimodal Journey exists.
+  //
+  // Needs no bridging: it already runs origin to destination. The planner
+  // recognises that on its own — a walk candidate's ends ARE the search
+  // points, so its bridging check finds nothing to add.
+  async proposeJourneys(
+    from: GeoPoint,
+    to: GeoPoint,
+    departureTime: Date,
+    wanted: (mode: TransportMode) => boolean,
+  ): Promise<RawJourneySegment[][]> {
+    if (!wanted(TransportMode.Marche)) return [];
+    const segments = await this.getSegments(from, to, departureTime);
+    return segments.length > 0 ? [segments] : [];
+  }
 
   // departureTime is unused: it belongs to the shared MobilityProvider
   // contract for Bus/Tram, and walking has no schedule to filter against.

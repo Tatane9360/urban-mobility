@@ -67,21 +67,85 @@ function mockGtfsRt(snapshot: GtfsRtSnapshot | null): GtfsRtService {
   } as unknown as GtfsRtService;
 }
 
-function mockWalkProvider(): WalkMobilityProvider {
+// Each provider now owns how its segments compose into candidate Journeys, so
+// a mock that only stubs getSegments would no longer plan anything. These
+// wrap a stubbed getSegments in the real composition rule of each provider —
+// the planner is what's under test, not the stub.
+type SegmentsFn = (
+  from: GeoPoint,
+  to: GeoPoint,
+  departureTime: Date,
+) => Promise<RawJourneySegment[]>;
+
+function mockBusTramProvider(getSegments: SegmentsFn): BusTramMobilityProvider {
+  const modes = [TransportMode.Tram, TransportMode.Bus];
   return {
-    getSegments: jest.fn((from: GeoPoint, to: GeoPoint) =>
-      Promise.resolve([
-        {
-          mode: TransportMode.Marche,
-          durationSeconds: 120,
-          distanceMeters: 150,
-          from: { name: '', ...from },
-          to: { name: '', ...to },
-        },
-      ]),
-    ),
-  } as unknown as WalkMobilityProvider;
+    modes,
+    getSegments,
+    // One candidate per departure, filtered by mode after the fact.
+    proposeJourneys: async (
+      from: GeoPoint,
+      to: GeoPoint,
+      departureTime: Date,
+      wanted: (mode: TransportMode) => boolean,
+    ) => {
+      if (!modes.some(wanted)) return [];
+      const segments = await getSegments(from, to, departureTime);
+      return segments.filter((s) => wanted(s.mode)).map((s) => [s]);
+    },
+  } as unknown as BusTramMobilityProvider;
 }
+
+function singleCandidateProvider<T>(
+  mode: TransportMode,
+  getSegments: SegmentsFn,
+): T {
+  return {
+    modes: [mode],
+    getSegments,
+    // All segments form one ride / one walk: a single candidate, or none.
+    proposeJourneys: async (
+      from: GeoPoint,
+      to: GeoPoint,
+      departureTime: Date,
+      wanted: (m: TransportMode) => boolean,
+    ) => {
+      if (!wanted(mode)) return [];
+      const segments = await getSegments(from, to, departureTime);
+      return segments.length > 0 ? [segments] : [];
+    },
+  } as unknown as T;
+}
+
+function mockBikeProvider(getSegments: SegmentsFn): BikeMobilityProvider {
+  return singleCandidateProvider<BikeMobilityProvider>(
+    TransportMode.Velo,
+    getSegments,
+  );
+}
+
+function mockWalkProviderWith(getSegments: SegmentsFn): WalkMobilityProvider {
+  return singleCandidateProvider<WalkMobilityProvider>(
+    TransportMode.Marche,
+    getSegments,
+  );
+}
+
+function mockWalkProvider(): WalkMobilityProvider {
+  return mockWalkProviderWith((from: GeoPoint, to: GeoPoint) =>
+    Promise.resolve([
+      {
+        mode: TransportMode.Marche,
+        durationSeconds: 120,
+        distanceMeters: 150,
+        from: { name: '', ...from },
+        to: { name: '', ...to },
+      },
+    ]),
+  );
+}
+
+const noSegments: SegmentsFn = () => Promise.resolve([]);
 
 interface JourneyPointInput {
   coordinates?: { lat: number; lon: number };
@@ -110,12 +174,10 @@ function mockProfiles(
 
 describe('JourneyPlannerService', () => {
   it('returns a Journey chaining Marche + Tram + Marche alongside the direct Marche candidate', async () => {
-    const busTramProvider = {
-      getSegments: jest.fn().mockResolvedValue([busTramSegment()]),
-    } as unknown as BusTramMobilityProvider;
-    const bikeProvider = {
-      getSegments: jest.fn().mockResolvedValue([]),
-    } as unknown as BikeMobilityProvider;
+    const busTramProvider = mockBusTramProvider(
+      jest.fn().mockResolvedValue([busTramSegment()]),
+    );
+    const bikeProvider = mockBikeProvider(noSegments);
     const walkProvider = mockWalkProvider();
     const service = new JourneyPlannerService(
       mockGeocoding([]),
@@ -159,12 +221,10 @@ describe('JourneyPlannerService', () => {
   });
 
   it('marks the Journey as degraded when GTFS-RT has no snapshot', async () => {
-    const busTramProvider = {
-      getSegments: jest.fn().mockResolvedValue([busTramSegment()]),
-    } as unknown as BusTramMobilityProvider;
-    const bikeProvider = {
-      getSegments: jest.fn().mockResolvedValue([]),
-    } as unknown as BikeMobilityProvider;
+    const busTramProvider = mockBusTramProvider(
+      jest.fn().mockResolvedValue([busTramSegment()]),
+    );
+    const bikeProvider = mockBikeProvider(noSegments);
     const service = new JourneyPlannerService(
       mockGeocoding([]),
       mockGtfsRt(null),
@@ -187,9 +247,9 @@ describe('JourneyPlannerService', () => {
     // A snapshot exists — the old `getSnapshot() === null` check would call
     // this fresh — but it was fetched 10 minutes ago. Serving it as real-time
     // is exactly the KPI-3 breach this guards.
-    const busTramProvider = {
-      getSegments: jest.fn().mockResolvedValue([busTramSegment()]),
-    } as unknown as BusTramMobilityProvider;
+    const busTramProvider = mockBusTramProvider(
+      jest.fn().mockResolvedValue([busTramSegment()]),
+    );
     // fetchedAt is 10 minutes before the real wall clock — freshness is
     // measured against Date.now(), not the itinerary's departureTime.
     const now = new Date('2026-07-10T08:00:00Z');
@@ -198,9 +258,7 @@ describe('JourneyPlannerService', () => {
       mockGtfsRt(freshSnapshot({ fetchedAt: new Date(Date.now() - 600_000) })),
       carbonService,
       busTramProvider,
-      {
-        getSegments: jest.fn().mockResolvedValue([]),
-      } as unknown as BikeMobilityProvider,
+      mockBikeProvider(noSegments),
       mockWalkProvider(),
       mockProfiles(),
     );
@@ -224,19 +282,15 @@ describe('JourneyPlannerService', () => {
       activeFrom: new Date(Date.now() - 60_000),
       activeUntil: new Date(Date.now() + 60_000),
     };
-    const busTramProvider = {
-      getSegments: jest
-        .fn()
-        .mockResolvedValue([{ ...busTramSegment(), routeId: 'L1' }]),
-    } as unknown as BusTramMobilityProvider;
+    const busTramProvider = mockBusTramProvider(
+      jest.fn().mockResolvedValue([{ ...busTramSegment(), routeId: 'L1' }]),
+    );
     const service = new JourneyPlannerService(
       mockGeocoding([]),
       mockGtfsRt(freshSnapshot({ alerts: [alert] })),
       carbonService,
       busTramProvider,
-      {
-        getSegments: jest.fn().mockResolvedValue([]),
-      } as unknown as BikeMobilityProvider,
+      mockBikeProvider(noSegments),
       mockWalkProvider(),
       mockProfiles(),
     );
@@ -263,11 +317,9 @@ describe('JourneyPlannerService', () => {
 
   it('does not attach an alert naming a different routeId', async () => {
     const now = new Date('2026-07-10T08:00:00Z');
-    const busTramProvider = {
-      getSegments: jest
-        .fn()
-        .mockResolvedValue([{ ...busTramSegment(), routeId: 'L1' }]),
-    } as unknown as BusTramMobilityProvider;
+    const busTramProvider = mockBusTramProvider(
+      jest.fn().mockResolvedValue([{ ...busTramSegment(), routeId: 'L1' }]),
+    );
     const service = new JourneyPlannerService(
       mockGeocoding([]),
       mockGtfsRt(
@@ -286,9 +338,7 @@ describe('JourneyPlannerService', () => {
       ),
       carbonService,
       busTramProvider,
-      {
-        getSegments: jest.fn().mockResolvedValue([]),
-      } as unknown as BikeMobilityProvider,
+      mockBikeProvider(noSegments),
       mockWalkProvider(),
       mockProfiles(),
     );
@@ -305,12 +355,8 @@ describe('JourneyPlannerService', () => {
   });
 
   it('returns only the direct Marche journey when no transit/bike candidate is found', async () => {
-    const busTramProvider = {
-      getSegments: jest.fn().mockResolvedValue([]),
-    } as unknown as BusTramMobilityProvider;
-    const bikeProvider = {
-      getSegments: jest.fn().mockResolvedValue([]),
-    } as unknown as BikeMobilityProvider;
+    const busTramProvider = mockBusTramProvider(noSegments);
+    const bikeProvider = mockBikeProvider(noSegments);
     const walkProvider = mockWalkProvider();
     const service = new JourneyPlannerService(
       mockGeocoding([]),
@@ -335,12 +381,8 @@ describe('JourneyPlannerService', () => {
 
   it('geocodes an address-only origin/destination before planning', async () => {
     const getBusTramSegments = jest.fn().mockResolvedValue([busTramSegment()]);
-    const busTramProvider = {
-      getSegments: getBusTramSegments,
-    } as unknown as BusTramMobilityProvider;
-    const bikeProvider = {
-      getSegments: jest.fn().mockResolvedValue([]),
-    } as unknown as BikeMobilityProvider;
+    const busTramProvider = mockBusTramProvider(getBusTramSegments);
+    const bikeProvider = mockBikeProvider(noSegments);
     const geocode = jest
       .fn()
       .mockResolvedValue([{ lat: 43.6146, lon: 3.8825 }]);
@@ -374,8 +416,8 @@ describe('JourneyPlannerService', () => {
       geocoding,
       mockGtfsRt(null),
       carbonService,
-      { getSegments: jest.fn() } as unknown as BusTramMobilityProvider,
-      { getSegments: jest.fn() } as unknown as BikeMobilityProvider,
+      mockBusTramProvider(noSegments),
+      mockBikeProvider(noSegments),
       mockWalkProvider(),
       mockProfiles(),
     );
@@ -396,8 +438,8 @@ describe('JourneyPlannerService', () => {
       mockGeocoding([]),
       mockGtfsRt(null),
       carbonService,
-      { getSegments: jest.fn() } as unknown as BusTramMobilityProvider,
-      { getSegments: jest.fn() } as unknown as BikeMobilityProvider,
+      mockBusTramProvider(noSegments),
+      mockBikeProvider(noSegments),
       mockWalkProvider(),
       mockProfiles(),
     );
@@ -413,8 +455,8 @@ describe('JourneyPlannerService', () => {
     // sort and carbon sort disagree. The direct Marche candidate is made
     // slower than both (3600s) so it doesn't dominate either sort and mask
     // the Tram-vs-Vélo comparison under test.
-    const busTramProvider = {
-      getSegments: jest.fn().mockResolvedValue([
+    const busTramProvider = mockBusTramProvider(
+      jest.fn().mockResolvedValue([
         {
           mode: TransportMode.Tram,
           durationSeconds: 300,
@@ -423,9 +465,9 @@ describe('JourneyPlannerService', () => {
           to: { name: 'Odysseum', lat: 43.6065, lon: 3.9165 },
         },
       ]),
-    } as unknown as BusTramMobilityProvider;
-    const bikeProvider = {
-      getSegments: jest.fn().mockResolvedValue([
+    );
+    const bikeProvider = mockBikeProvider(
+      jest.fn().mockResolvedValue([
         {
           mode: TransportMode.Velo,
           durationSeconds: 900,
@@ -434,27 +476,25 @@ describe('JourneyPlannerService', () => {
           to: { name: 'Station B', lat: 43.6065, lon: 3.9165 },
         },
       ]),
-    } as unknown as BikeMobilityProvider;
+    );
     // The same WalkMobilityProvider is used both for bridging walks (short,
     // stop-to-search-point) and the direct candidate (long, origin-to-
     // destination) — distinguish them by distance so bridging walks stay
     // negligible while the direct Marche candidate is deliberately slow.
-    const slowWalkProvider = {
-      getSegments: jest.fn((from: GeoPoint, to: GeoPoint) => {
-        const isDirect =
-          Math.abs(from.lat - origin.lat) < 1e-6 &&
-          Math.abs(to.lat - destination.lat) < 1e-6;
-        return Promise.resolve([
-          {
-            mode: TransportMode.Marche,
-            durationSeconds: isDirect ? 3600 : 30,
-            distanceMeters: isDirect ? 4500 : 40,
-            from: { name: '', ...from },
-            to: { name: '', ...to },
-          },
-        ]);
-      }),
-    } as unknown as WalkMobilityProvider;
+    const slowWalkProvider = mockWalkProviderWith((from, to) => {
+      const isDirect =
+        Math.abs(from.lat - origin.lat) < 1e-6 &&
+        Math.abs(to.lat - destination.lat) < 1e-6;
+      return Promise.resolve([
+        {
+          mode: TransportMode.Marche,
+          durationSeconds: isDirect ? 3600 : 30,
+          distanceMeters: isDirect ? 4500 : 40,
+          from: { name: '', ...from },
+          to: { name: '', ...to },
+        },
+      ]);
+    });
     const service = new JourneyPlannerService(
       mockGeocoding([]),
       mockGtfsRt(freshSnapshot()),

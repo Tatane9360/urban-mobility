@@ -541,7 +541,9 @@ describe('GtfsRtService', () => {
     const second = service.getSnapshot()!;
     expect(second).not.toBe(firstSnapshot);
     expect(second.delays.size).toBe(1);
-    expect(second.delays.get(tripStopKey('TRIP_L1_1', 'MOSSON'))?.delaySeconds).toBe(180);
+    expect(
+      second.delays.get(tripStopKey('TRIP_L1_1', 'MOSSON'))?.delaySeconds,
+    ).toBe(180);
     expect(second.fetchedAt.getTime()).toBeGreaterThanOrEqual(
       firstSnapshot!.fetchedAt.getTime(),
     );
