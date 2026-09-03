@@ -3,8 +3,6 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { SentryModule, SentryGlobalFilter } from '@sentry/nestjs/setup';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
 import { DatabaseModule } from './database/database.module';
 import { IntegrationModule } from './integration/integration.module';
 import { AuthModule } from './auth/auth.module';
@@ -40,9 +38,7 @@ import { JourneysModule } from './journeys/journeys.module';
     RoutingModule,
     JourneysModule,
   ],
-  controllers: [AppController],
   providers: [
-    AppService,
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_FILTER, useClass: SentryGlobalFilter },
   ],

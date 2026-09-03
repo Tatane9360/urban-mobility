@@ -17,7 +17,7 @@ const NEARBY_STOP_RADIUS_METERS = 500;
 // How many upcoming departures to propose. ponytail: these are alternatives on
 // a single line, never a chain of two lines with a correspondence — building
 // real transfers means a graph search over the whole network, explicitly out
-// of scope here (see FONCTIONNALITES_MANQUANTES.md #9).
+// of scope here.
 const MAX_DEPARTURES = 3;
 
 // gtfs_calendar day columns indexed by Date.getDay() (0 = Sunday), so a trip
