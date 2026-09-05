@@ -50,14 +50,16 @@ body {
 }
 
 /* BootSplash: the logo rises into place while the stored-token check runs, and
-   is cut off wherever that check finishes. One pass, nothing loops. */
+   is cut off wherever that check finishes. One pass, nothing loops.
+   Opacity stays out of this animation on purpose: it's the LCP element, and an
+   opacity:0 start makes Chrome hold the LCP timestamp until the fade resolves
+   instead of crediting the first real paint — a lazy scale-only rise keeps the
+   same motion without that penalty. */
 @keyframes boot-arc {
   from {
-    opacity: 0;
     transform: scale(0.97);
   }
   to {
-    opacity: 1;
     transform: scale(1);
   }
 }
