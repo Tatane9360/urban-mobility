@@ -38,7 +38,10 @@ export function MobileTabBar() {
             href={href}
             aria-current={active ? 'page' : undefined}
             className={`flex flex-1 flex-col items-center gap-1 py-2.5 text-xs font-medium transition-colors ${
-              active ? 'text-accent' : 'text-zinc-500 dark:text-zinc-400'
+              // --accent's dark value (#3b6ea5) is 3.34:1 on this bar's dark
+              // background — enough for the icon's fill but not WCAG AA's 4.5:1
+              // for text. Only the label swaps to accent-hover in dark mode.
+              active ? 'text-accent dark:text-accent-hover' : 'text-zinc-500 dark:text-zinc-400'
             }`}
           >
             <Icon size={22} weight={active ? 'fill' : 'regular'} />
