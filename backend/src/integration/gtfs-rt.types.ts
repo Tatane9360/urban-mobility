@@ -27,6 +27,9 @@ export interface TripStopDelay {
 export interface ServiceAlert {
   id: string;
   routeIds: string[];
+  // Human label per routeId, same index order. Falls back to the routeId
+  // itself if the static feed has no matching route.
+  routeShortNames: string[];
   header: string;
   description: string;
   // Absent bounds mean "no start"/"no end" per the spec, kept as null.

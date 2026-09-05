@@ -3,6 +3,15 @@ import GtfsRealtimeBindings from 'gtfs-realtime-bindings';
 import type { transit_realtime } from 'gtfs-realtime-bindings';
 import { GtfsRtService } from './gtfs-rt.service';
 import { tripStopKey } from './gtfs-rt.types';
+import { GtfsScheduleRepository } from './gtfs-schedule.repository';
+
+// Alerts aren't under test in most of these cases; an empty map just echoes
+// each routeId back as its own short name (see GtfsRtService.refreshAlerts).
+function mockScheduleRepository(): GtfsScheduleRepository {
+  return {
+    findRouteShortNames: jest.fn().mockResolvedValue(new Map()),
+  } as unknown as GtfsScheduleRepository;
+}
 
 // The two VehiclePosition vars are required (getOrThrow); TripUpdate/Alert
 // fall back to their published defaults, so get() must return the fallback it
@@ -101,7 +110,7 @@ describe('GtfsRtService', () => {
       );
     });
 
-    const service = new GtfsRtService(mockConfig());
+    const service = new GtfsRtService(mockConfig(), mockScheduleRepository());
     await service.refresh();
     const snapshot = service.getSnapshot();
 
@@ -149,7 +158,7 @@ describe('GtfsRtService', () => {
       ],
     });
 
-    const service = new GtfsRtService(mockConfig());
+    const service = new GtfsRtService(mockConfig(), mockScheduleRepository());
     await service.refresh();
     const delays = service.getSnapshot()!.delays;
 
@@ -178,7 +187,7 @@ describe('GtfsRtService', () => {
       ],
     });
 
-    const service = new GtfsRtService(mockConfig());
+    const service = new GtfsRtService(mockConfig(), mockScheduleRepository());
     await service.refresh();
 
     expect(
@@ -203,7 +212,7 @@ describe('GtfsRtService', () => {
       ],
     });
 
-    const service = new GtfsRtService(mockConfig());
+    const service = new GtfsRtService(mockConfig(), mockScheduleRepository());
     await service.refresh();
     const delays = service.getSnapshot()!.delays;
 
@@ -230,7 +239,7 @@ describe('GtfsRtService', () => {
       ],
     });
 
-    const service = new GtfsRtService(mockConfig());
+    const service = new GtfsRtService(mockConfig(), mockScheduleRepository());
     await service.refresh();
     const delays = service.getSnapshot()!.delays;
 
@@ -256,7 +265,7 @@ describe('GtfsRtService', () => {
       ],
     });
 
-    const service = new GtfsRtService(mockConfig());
+    const service = new GtfsRtService(mockConfig(), mockScheduleRepository());
     await service.refresh();
     const delays = service.getSnapshot()!.delays;
 
@@ -289,7 +298,7 @@ describe('GtfsRtService', () => {
       ],
     });
 
-    const service = new GtfsRtService(mockConfig());
+    const service = new GtfsRtService(mockConfig(), mockScheduleRepository());
     await service.refreshAlerts();
     await service.refresh();
     const alert = service.getSnapshot()!.alerts[0];
@@ -297,11 +306,41 @@ describe('GtfsRtService', () => {
     expect(alert).toEqual({
       id: 'ALERT_1',
       routeIds: ['L1', 'L4'],
+      routeShortNames: ['L1', 'L4'],
       header: 'Ligne 1 perturbée',
       description: 'Travaux entre Corum et Odysseum',
       activeFrom: new Date(1783620000 * 1000),
       activeUntil: new Date(1783630000 * 1000),
     });
+  });
+
+  it('resolves routeIds to their route_short_name for display', async () => {
+    global.fetch = mockFetchByFeed({
+      alert: [
+        {
+          id: 'ALERT_1',
+          alert: {
+            informedEntity: [{ routeId: 'T1' }, { routeId: 'UNKNOWN' }],
+            headerText: {
+              translation: [{ language: 'fr', text: 'Retard annoncé' }],
+            },
+          },
+        },
+      ],
+    });
+    const scheduleRepository = {
+      findRouteShortNames: jest
+        .fn()
+        .mockResolvedValue(new Map([['T1', '1']])),
+    } as unknown as GtfsScheduleRepository;
+
+    const service = new GtfsRtService(mockConfig(), scheduleRepository);
+    await service.refreshAlerts();
+    const alert = service.getActiveAlerts()[0];
+
+    // 'UNKNOWN' has no match in the static feed, so it falls back to itself
+    // rather than disappearing from the badge.
+    expect(alert.routeShortNames).toEqual(['1', 'UNKNOWN']);
   });
 
   it('getActiveAlerts excludes an alert whose period has ended', async () => {
@@ -344,7 +383,7 @@ describe('GtfsRtService', () => {
       ],
     });
 
-    const service = new GtfsRtService(mockConfig());
+    const service = new GtfsRtService(mockConfig(), mockScheduleRepository());
     await service.refreshAlerts();
     await service.refresh();
 
@@ -356,7 +395,7 @@ describe('GtfsRtService', () => {
 
   it('reports a snapshot older than the staleness window as not fresh', async () => {
     global.fetch = mockFetchByFeed({});
-    const service = new GtfsRtService(mockConfig());
+    const service = new GtfsRtService(mockConfig(), mockScheduleRepository());
     await service.refresh();
     const fetchedAt = service.getSnapshot()!.fetchedAt;
 
@@ -387,7 +426,7 @@ describe('GtfsRtService', () => {
         },
       ],
     });
-    const service = new GtfsRtService(mockConfig());
+    const service = new GtfsRtService(mockConfig(), mockScheduleRepository());
     await service.refreshAlerts();
     await service.refresh();
 
@@ -426,7 +465,7 @@ describe('GtfsRtService', () => {
       return Promise.resolve(pbResponse(encodeFeed([])));
     });
 
-    const service = new GtfsRtService(mockConfig());
+    const service = new GtfsRtService(mockConfig(), mockScheduleRepository());
     await service.refreshAlerts();
 
     expect(service.getActiveAlerts().map((a) => a.id)).toEqual(['ALERT_SUB']);
@@ -446,7 +485,7 @@ describe('GtfsRtService', () => {
         },
       ],
     });
-    const service = new GtfsRtService(mockConfig());
+    const service = new GtfsRtService(mockConfig(), mockScheduleRepository());
     await service.refreshAlerts();
 
     const fetchMock = mockFetchByFeed({});
@@ -474,7 +513,7 @@ describe('GtfsRtService', () => {
         },
       ],
     });
-    const service = new GtfsRtService(mockConfig());
+    const service = new GtfsRtService(mockConfig(), mockScheduleRepository());
     await service.refreshAlerts();
     await service.refresh();
 
@@ -487,7 +526,7 @@ describe('GtfsRtService', () => {
   });
 
   it('reports no snapshot at all as not fresh', () => {
-    expect(new GtfsRtService(mockConfig()).isFresh()).toBe(false);
+    expect(new GtfsRtService(mockConfig(), mockScheduleRepository()).isFresh()).toBe(false);
   });
 
   it('keeps the previous snapshot when a refresh fails', async () => {
@@ -497,7 +536,7 @@ describe('GtfsRtService', () => {
       ],
     });
 
-    const service = new GtfsRtService(mockConfig());
+    const service = new GtfsRtService(mockConfig(), mockScheduleRepository());
     await service.refresh();
     const firstSnapshot = service.getSnapshot();
 
@@ -521,7 +560,7 @@ describe('GtfsRtService', () => {
         },
       ],
     });
-    const service = new GtfsRtService(mockConfig());
+    const service = new GtfsRtService(mockConfig(), mockScheduleRepository());
     await service.refresh();
     const firstSnapshot = service.getSnapshot();
     expect(firstSnapshot!.delays.size).toBe(1);
@@ -562,7 +601,7 @@ describe('GtfsRtService', () => {
         ? Promise.resolve({ ok: false, status: 429 } as unknown as Response)
         : Promise.resolve(pbResponse(encodeFeed([]))),
     );
-    const service = new GtfsRtService(mockConfig());
+    const service = new GtfsRtService(mockConfig(), mockScheduleRepository());
 
     await service.refresh();
     const afterFirst = tripUpdateCalls();
@@ -598,7 +637,7 @@ describe('GtfsRtService', () => {
           ),
     );
 
-    const service = new GtfsRtService(mockConfig());
+    const service = new GtfsRtService(mockConfig(), mockScheduleRepository());
     await service.refresh();
 
     // The Urbain vehicles survived the Suburbain 429.
@@ -607,7 +646,7 @@ describe('GtfsRtService', () => {
 
   it('keeps the previous snapshot when a feed returns corrupted bytes', async () => {
     global.fetch = mockFetchByFeed({ alert: [] });
-    const service = new GtfsRtService(mockConfig());
+    const service = new GtfsRtService(mockConfig(), mockScheduleRepository());
     await service.refresh();
     const firstSnapshot = service.getSnapshot();
 

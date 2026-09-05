@@ -10,6 +10,7 @@ import {
   VehiclePosition,
   tripStopKey,
 } from './gtfs-rt.types';
+import { GtfsScheduleRepository } from './gtfs-schedule.repository';
 
 // Do not shorten: TaM throttles TripUpdate.pb hard enough that polling every
 // 20s still drew HTTP 429 about half the time (measured 2026-09-01). A tighter
@@ -68,7 +69,10 @@ export class GtfsRtService implements OnModuleInit {
   // one place. A failed alert poll leaves the previous list standing.
   private alerts: ServiceAlert[] = [];
 
-  constructor(config: ConfigService) {
+  constructor(
+    config: ConfigService,
+    private readonly scheduleRepository: GtfsScheduleRepository,
+  ) {
     this.vehiclePositionUrls = [
       config.getOrThrow<string>('GTFS_RT_URBAIN_VEHICLE_POSITION_URL'),
       config.getOrThrow<string>('GTFS_RT_SUBURBAIN_VEHICLE_POSITION_URL'),
@@ -209,8 +213,18 @@ export class GtfsRtService implements OnModuleInit {
       return;
     }
 
+    const rawAlerts = entities.flatMap(toServiceAlerts);
+    const routeShortNames = await this.scheduleRepository.findRouteShortNames(
+      Array.from(new Set(rawAlerts.flatMap((a) => a.routeIds))),
+    );
+
     const previousCount = this.alerts.length;
-    this.alerts = entities.flatMap(toServiceAlerts);
+    this.alerts = rawAlerts.map((alert) => ({
+      ...alert,
+      routeShortNames: alert.routeIds.map(
+        (id) => routeShortNames.get(id) ?? id,
+      ),
+    }));
     // The live snapshot must see the new list without waiting for the next
     // refresh — otherwise a just-published disruption stays invisible.
     if (this.snapshot) {
@@ -369,7 +383,7 @@ function toTripStopDelays(
 
 function toServiceAlerts(
   entities: transit_realtime.IFeedEntity[],
-): ServiceAlert[] {
+): Omit<ServiceAlert, 'routeShortNames'>[] {
   return entities
     .filter((entity) => entity.alert)
     .map((entity) => {

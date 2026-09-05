@@ -244,6 +244,7 @@ describe('Journeys (e2e)', () => {
     const alert: ServiceAlert = {
       id: 'ALERT_L1',
       routeIds: ['L1'],
+      routeShortNames: ['1'],
       header: 'Ligne 1 perturbée',
       description: 'Travaux entre Mosson et Odysseum',
       activeFrom: null,
@@ -536,6 +537,7 @@ describe('Journeys (e2e)', () => {
         {
           id: 'CURRENT',
           routeIds: ['L1'],
+          routeShortNames: ['1'],
           header: 'Ligne 1 perturbée',
           description: 'Travaux',
           activeFrom: new Date(now.getTime() - 60_000),
@@ -544,6 +546,7 @@ describe('Journeys (e2e)', () => {
         {
           id: 'EXPIRED',
           routeIds: ['L2'],
+          routeShortNames: ['2'],
           header: 'Terminée',
           description: '',
           activeFrom: new Date(now.getTime() - 7_200_000),

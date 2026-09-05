@@ -277,6 +277,7 @@ describe('JourneyPlannerService', () => {
     const alert: ServiceAlert = {
       id: 'ALERT_1',
       routeIds: ['L1'],
+      routeShortNames: ['1'],
       header: 'Travaux ligne 1',
       description: 'Interruption entre Corum et Odysseum',
       activeFrom: new Date(Date.now() - 60_000),
@@ -328,6 +329,7 @@ describe('JourneyPlannerService', () => {
             {
               id: 'ALERT_2',
               routeIds: ['L4'],
+              routeShortNames: ['4'],
               header: 'Ligne 4 perturbée',
               description: '',
               activeFrom: null,

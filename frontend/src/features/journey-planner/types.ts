@@ -86,6 +86,9 @@ export interface CarComparison {
 export interface ServiceAlert {
   id: string;
   routeIds: string[];
+  // The human label riders know each routeId by ("1", "L2") — use this to
+  // display lines, routeIds is a matching key, not a label.
+  routeShortNames: string[];
   header: string;
   description: string;
   // ISO strings over the wire; null means "no bound" per GTFS-RT.

@@ -230,6 +230,25 @@ export class GtfsScheduleRepository {
     }
     return geometries;
   }
+
+  // route_id -> route_short_name for the given GTFS-RT route ids. Alerts carry
+  // only the technical route_id (informedEntity), which is never the number
+  // riders know a line by — this resolves it to what the UI should badge.
+  async findRouteShortNames(
+    routeIds: string[],
+  ): Promise<Map<string, string>> {
+    if (routeIds.length === 0) return new Map();
+    const rows: { routeId: string; routeShortName: string | null }[] =
+      await this.dataSource.query(
+        `SELECT "routeId", "routeShortName" FROM gtfs_route WHERE "routeId" = ANY($1::text[])`,
+        [routeIds],
+      );
+    return new Map(
+      rows
+        .filter((row) => row.routeShortName)
+        .map((row) => [row.routeId, row.routeShortName!]),
+    );
+  }
 }
 
 // KNOWN GAP: getHours() yields 0-23, so this never matches a stop_time past
