@@ -162,7 +162,10 @@ export function JourneyPlannerScreen() {
         {pickTarget && (
           <div
             role="status"
-            className="absolute left-1/2 top-3 z-[1000] flex -translate-x-1/2 items-center gap-3 rounded-full border border-zinc-200 bg-white/95 py-1.5 pl-4 pr-1.5 text-sm text-zinc-700 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/95 dark:text-zinc-300"
+            // top-14 clears the right-3 top-3 button row (h-9 ≈ 2.25rem) this
+            // pill would otherwise sit under on narrow screens, since both are
+            // absolutely positioned and don't share layout flow.
+            className="absolute left-1/2 top-14 z-[1000] flex w-max max-w-[calc(100%-1.5rem)] -translate-x-1/2 items-center gap-3 rounded-2xl border border-zinc-200 bg-white/95 py-1.5 pl-4 pr-1.5 text-sm text-zinc-700 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/95 dark:text-zinc-300"
           >
             {pickTarget === 'nearby-stations'
               ? 'Cliquez sur la carte pour simuler votre position'

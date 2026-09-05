@@ -8,6 +8,7 @@ import { useProfile } from '@/src/features/profile/hooks/useProfile';
 import { ProfileForm } from '@/src/features/profile/components/ProfileForm';
 import { UserDataSection } from '@/src/features/profile/components/UserDataSection';
 import { GeolocationConsentSection } from '@/src/features/profile/components/GeolocationConsentSection';
+import { LegalLinks } from '@/src/components/Footer';
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -80,6 +81,7 @@ export default function ProfilePage() {
       <ProfileForm profile={profile} saving={saving} error={saveError} onSave={save} />
       <GeolocationConsentSection />
       {user && <UserDataSection email={user.email} onLeaving={() => setLeaving(true)} />}
+      <LegalLinks className="mt-8 border-t border-zinc-200 pt-6 lg:hidden dark:border-zinc-800" />
     </div>
   );
 }

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AuthProvider } from "@/src/features/auth/context/AuthContext";
 import { AppHeader } from "@/src/components/AppHeader";
+import { Footer } from "@/src/components/Footer";
 import { MobileTabBar } from "@/src/components/MobileTabBar";
 import { ServiceWorkerRegistration } from "@/src/components/ServiceWorkerRegistration";
 import "./globals.css";
@@ -44,7 +45,7 @@ export default function RootLayout({
       lang="fr"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">
+      <body className="flex min-h-[100dvh] flex-col">
         <ServiceWorkerRegistration />
         <a
           href="#contenu"
@@ -54,12 +55,22 @@ export default function RootLayout({
         </a>
         <AuthProvider>
           <AppHeader />
-          {/* pb-16 clears MobileTabBar's own height (py-2.5 content + icon +
-              label ≈ 4rem) so the last bit of page content isn't hidden
-              under it; lg:pb-0 since the bar itself is lg:hidden. */}
-          <main id="contenu" className="flex flex-1 flex-col pb-16 lg:pb-0">
+          {/* pb-[calc(4.5rem+env(safe-area-inset-bottom))] clears MobileTabBar's
+              fixed height (py-2.5 + icon + label ≈ 4.5rem) plus its own
+              safe-area padding, so page content isn't hidden under the bar;
+              lg:pb-0 since the bar itself is lg:hidden. */}
+          <main
+            id="contenu"
+            className="flex flex-1 flex-col pb-[calc(4.5rem+env(safe-area-inset-bottom))] lg:pb-0"
+          >
             {children}
           </main>
+          {/* Hidden below lg: MobileTabBar owns that space, and a footer
+              squeezed above a fixed tab bar on every screen reads as
+              cluttered. The same links live in ProfileLegalLinks instead,
+              reachable without lg's screen real estate via /profile and
+              /login. */}
+          <Footer className="hidden lg:block" />
           <MobileTabBar />
         </AuthProvider>
       </body>

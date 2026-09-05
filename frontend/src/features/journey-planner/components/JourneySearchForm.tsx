@@ -225,10 +225,14 @@ export function JourneySearchForm({
             id="sort-criterion"
             value={sort}
             onChange={(e) => onSortChange(e.target.value as JourneySortCriterion)}
-            className="rounded-md border border-zinc-200 bg-transparent py-1 pl-2 pr-6 text-sm text-zinc-700 outline-none focus:border-accent dark:border-zinc-800 dark:text-zinc-300"
+            className="rounded-md border border-zinc-200 bg-transparent py-1 pl-2 pr-6 text-sm text-zinc-700 outline-none [color-scheme:light] focus:border-accent dark:border-zinc-800 dark:text-zinc-300 dark:[color-scheme:dark]"
           >
-            <option value="duration">Plus rapide</option>
-            <option value="carbon">Plus écologique</option>
+            <option value="duration" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-50">
+              Plus rapide
+            </option>
+            <option value="carbon" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-50">
+              Plus écologique
+            </option>
           </select>
         </div>
 
