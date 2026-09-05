@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
-import { ArrowsOutSimple, ArrowsInSimple, Crosshair } from '@phosphor-icons/react/dist/ssr';
+import { ArrowsOutSimple, ArrowsInSimple, Crosshair, Bicycle } from '@phosphor-icons/react/dist/ssr';
 import { AlertsBanner } from './AlertsBanner';
 import { JourneySearchForm } from './JourneySearchForm';
 import { JourneyResultsList } from './JourneyResultsList';
@@ -54,6 +54,8 @@ export function JourneyPlannerScreen() {
   const [nearbyOrigin, setNearbyOrigin] = useState<Coordinates | null>(null);
   const [nearbyStations, setNearbyStations] = useState<(BikeStation & { distanceMeters: number })[]>([]);
   const [bikeStationsFetchedAt, setBikeStationsFetchedAt] = useState<string | null>(null);
+  // Off by default — station markers are noise until the user asks for them.
+  const [showBikeStations, setShowBikeStations] = useState(false);
   const [finishError, setFinishError] = useState<string | null>(null);
 
   // Typing (or geocoding) over a picked point drops its label, handing the
@@ -155,6 +157,7 @@ export function JourneyPlannerScreen() {
           nearbyOrigin={nearbyOrigin}
           onNearbyStationsChange={setNearbyStations}
           onBikeStationsFetchedAtChange={setBikeStationsFetchedAt}
+          showBikeStations={showBikeStations}
         />
         {pickTarget && (
           <div
@@ -184,7 +187,20 @@ export function JourneyPlannerScreen() {
             finishError={finishError}
           />
         ) : (
-          <div className="absolute right-3 top-3 flex gap-2">
+          <div className="absolute right-3 top-3 z-[1000] flex gap-2">
+            <button
+              type="button"
+              onClick={() => setShowBikeStations((v) => !v)}
+              aria-pressed={showBikeStations}
+              aria-label={showBikeStations ? 'Masquer les stations de vélo' : 'Afficher les stations de vélo'}
+              className={`flex h-9 w-9 items-center justify-center rounded-full border shadow-sm transition-colors ${
+                showBikeStations
+                  ? 'border-accent bg-accent/10 text-accent'
+                  : 'border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800'
+              }`}
+            >
+              <Bicycle size={16} />
+            </button>
             <button
               type="button"
               onClick={toggleNearbyStations}

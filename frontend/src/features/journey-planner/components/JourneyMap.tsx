@@ -66,6 +66,9 @@ interface JourneyMapProps {
   // When the bike-station snapshot was last refreshed, so the list can show
   // "il y a X min" instead of implying the numbers are always live.
   onBikeStationsFetchedAtChange?: (fetchedAt: string | null) => void;
+  // Station markers are noise until asked for — hidden by default, shown
+  // only when the user opts in (or when a nearby-stations search needs them).
+  showBikeStations?: boolean;
 }
 
 export function JourneyMap({
@@ -76,6 +79,7 @@ export function JourneyMap({
   nearbyOrigin,
   onNearbyStationsChange,
   onBikeStationsFetchedAtChange,
+  showBikeStations = false,
 }: JourneyMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -205,33 +209,35 @@ export function JourneyMap({
       : [];
     const nearbyIds = new Set(nearby.map(({ station }) => station.stationId));
 
-    stations.forEach((station) => {
-      const available = (station.bikesAvailable ?? 0) > 0;
-      const availability =
-        station.bikesAvailable !== undefined && station.docksAvailable !== undefined
-          ? `${station.bikesAvailable} vélo(s) · ${station.docksAvailable} place(s)`
-          : 'Disponibilité inconnue';
-      const isNearby = nearbyIds.has(station.stationId);
-      const color = available ? BIKE_AVAILABLE_COLOR : BIKE_UNAVAILABLE_COLOR;
+    if (showBikeStations || nearbyOrigin) {
+      stations.forEach((station) => {
+        const available = (station.bikesAvailable ?? 0) > 0;
+        const availability =
+          station.bikesAvailable !== undefined && station.docksAvailable !== undefined
+            ? `${station.bikesAvailable} vélo(s) · ${station.docksAvailable} place(s)`
+            : 'Disponibilité inconnue';
+        const isNearby = nearbyIds.has(station.stationId);
+        const color = available ? BIKE_AVAILABLE_COLOR : BIKE_UNAVAILABLE_COLOR;
 
-      const updatedAt = fetchedAt
-        ? `<br><span style="opacity:0.65;font-size:0.85em">Mis à jour ${formatRelativeTime(fetchedAt, now)}</span>`
-        : '';
+        const updatedAt = fetchedAt
+          ? `<br><span style="opacity:0.65;font-size:0.85em">Mis à jour ${formatRelativeTime(fetchedAt, now)}</span>`
+          : '';
 
-      L.marker([station.lat, station.lon], {
-        icon: bikeStationIcon(color, isNearby ? 28 : 22),
-        opacity: nearbyOrigin && !isNearby ? 0.45 : 1,
-      })
-        .bindPopup(`<strong>${station.name}</strong><br>${availability}${updatedAt}`)
-        .addTo(layerGroup);
-    });
+        L.marker([station.lat, station.lon], {
+          icon: bikeStationIcon(color, isNearby ? 28 : 22),
+          opacity: nearbyOrigin && !isNearby ? 0.45 : 1,
+        })
+          .bindPopup(`<strong>${station.name}</strong><br>${availability}${updatedAt}`)
+          .addTo(layerGroup);
+      });
+    }
 
     onNearbyStationsChange?.(
       nearby
         .sort((a, b) => a.distanceMeters - b.distanceMeters)
         .map(({ station, distanceMeters }) => ({ ...station, distanceMeters })),
     );
-  }, [stations, fetchedAt, now, nearbyOrigin, onNearbyStationsChange]);
+  }, [stations, fetchedAt, now, nearbyOrigin, onNearbyStationsChange, showBikeStations]);
 
   useEffect(() => {
     const map = mapRef.current;
